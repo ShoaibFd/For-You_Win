@@ -6,8 +6,8 @@ import 'package:for_u_win/components/primary_button.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/data/services/auth/auth_services.dart';
 import 'package:for_u_win/pages/auth/login_page.dart';
-import 'package:for_u_win/pages/bottom_navbar/bottom_navbar.dart';
 import 'package:get/get.dart';
+import 'package:provider/provider.dart';
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({super.key});
@@ -17,28 +17,14 @@ class CreateAccountPage extends StatefulWidget {
 }
 
 class _CreateAccountPageState extends State<CreateAccountPage> {
+  // Controllers!!
   final nameController = TextEditingController();
-
   final emailController = TextEditingController();
-
   final phoneController = TextEditingController();
-
-  final passwordController = TextEditingController();
-
+  final addressController = TextEditingController();
+  // Form key!!
   final formKey = GlobalKey<FormState>();
   final AuthServices authServices = AuthServices();
-
-  // Create Account Function
-  void createAccount() {
-    if (formKey.currentState!.validate()) {
-      authServices.createAccount(
-        nameController.text,
-        emailController.text,
-        phoneController.text,
-        passwordController.text,
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +67,12 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       hint: 'Full Name',
                       label: 'Full Name',
                       suffixIcon: Icons.person_2_rounded,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter name";
+                        }
+                        return null;
+                      },
                     ),
 
                     // Email Field
@@ -90,6 +82,12 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       hint: 'abc@gmail.com',
                       label: 'Email Address',
                       suffixIcon: Icons.email_outlined,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter email";
+                        }
+                        return null;
+                      },
                     ),
 
                     // Phone Field
@@ -99,26 +97,49 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       hint: '0301*****77',
                       label: 'Phone',
                       suffixIcon: Icons.phone_in_talk_outlined,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter phone";
+                        }
+                        return null;
+                      },
                     ),
 
                     // Password Field
                     AppTextField(
-                      controller: passwordController,
+                      controller: addressController,
                       keyboardType: TextInputType.visiblePassword,
-                      hint: '######',
-                      label: 'Password',
-                      suffixIcon: Icons.lock,
+                      hint: 'Shop-Address',
+                      label: 'Address',
+                      suffixIcon: Icons.place,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter address";
+                        }
+                        return null;
+                      },
                     ),
 
                     SizedBox(height: 40.h),
 
                     // Create Account Button
-                    PrimaryButton(
-                      isLoading: authServices.isLoading,
-                      onTap: () {
-                        Get.to(() => BottomNavigationBarPage());
+                    Consumer<AuthServices>(
+                      builder: (context, authServices, _) {
+                        return PrimaryButton(
+                          isLoading: authServices.isLoading,
+                          onTap: () {
+                            if (formKey.currentState!.validate()) {
+                              authServices.createAccount(
+                                nameController.text,
+                                emailController.text,
+                                phoneController.text,
+                                addressController.text,
+                              );
+                            }
+                          },
+                          title: 'Create Account',
+                        );
                       },
-                      title: 'Create Account',
                     ),
 
                     // Login Link

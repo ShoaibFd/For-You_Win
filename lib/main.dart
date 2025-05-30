@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
-import 'package:for_u_win/pages/splash/splash_page.dart';
 import 'package:for_u_win/core/utils/dismiss_keyboard.dart';
+import 'package:for_u_win/data/services/auth/auth_services.dart';
+import 'package:for_u_win/data/services/dashboard/dashboard_services.dart';
+import 'package:for_u_win/pages/splash/splash_page.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthServices()),
+        ChangeNotifierProvider(create: (_) => DashboardServices()),
+      ],
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

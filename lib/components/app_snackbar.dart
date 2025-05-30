@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class AppSnackbar {
-  static void showSuccessSnackbar(String message) {
+  static void showSuccessSnackbar(String message, {int duration = 3}) {
     Get.snackbar(
       "Success",
       message,
@@ -12,11 +12,11 @@ class AppSnackbar {
       margin: const EdgeInsets.all(10),
       borderRadius: 10,
       icon: const Icon(Icons.check_circle, color: Colors.white),
-      duration: const Duration(seconds: 3),
+      duration: Duration(seconds: duration),
     );
   }
 
-  static void showErrorSnackbar(String message) {
+  static void showErrorSnackbar(String message, {int duration = 3}) {
     Get.snackbar(
       "Error",
       message,
@@ -26,11 +26,11 @@ class AppSnackbar {
       margin: const EdgeInsets.all(10),
       borderRadius: 10,
       icon: const Icon(Icons.error, color: Colors.white),
-      duration: const Duration(seconds: 3),
+      duration: Duration(seconds: duration),
     );
   }
 
-  static void showInfoSnackbar(String message) {
+  static void showInfoSnackbar(String message, {int duration = 3}) {
     Get.snackbar(
       "Info",
       message,
@@ -40,7 +40,7 @@ class AppSnackbar {
       margin: const EdgeInsets.all(10),
       borderRadius: 10,
       icon: const Icon(Icons.info, color: Colors.white),
-      duration: const Duration(seconds: 3),
+      duration: Duration(seconds: duration),
     );
   }
 }

@@ -6,8 +6,8 @@ import 'package:for_u_win/components/primary_button.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/data/services/auth/auth_services.dart';
 import 'package:for_u_win/pages/auth/create_accout_page.dart';
-import 'package:for_u_win/pages/bottom_navbar/bottom_navbar.dart';
 import 'package:get/get.dart';
+import 'package:provider/provider.dart';
 
 class LoginPage extends StatelessWidget {
   LoginPage({super.key});
@@ -17,12 +17,6 @@ class LoginPage extends StatelessWidget {
   final formKey = GlobalKey<FormState>();
 
   final AuthServices authServices = AuthServices();
-  // Create Account Function
-  void login() {
-    if (formKey.currentState!.validate()) {
-      authServices.login(emailController.text, passwordController.text);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +58,12 @@ class LoginPage extends StatelessWidget {
                       hint: 'abc@gmail.com',
                       label: 'Email Address or Mobile Number',
                       suffixIcon: Icons.email_outlined,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter email";
+                        }
+                        return null;
+                      },
                     ),
 
                     // Password Field
@@ -73,6 +73,12 @@ class LoginPage extends StatelessWidget {
                       hint: '######',
                       label: 'Enter Password',
                       suffixIcon: Icons.lock,
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter password";
+                        }
+                        return null;
+                      },
                     ),
                     Align(
                       alignment: Alignment.bottomRight,
@@ -84,13 +90,26 @@ class LoginPage extends StatelessWidget {
 
                     SizedBox(height: 70.h),
 
-                    // Create Account Button
-                    PrimaryButton(
-                      isLoading: authServices.isLoading,
-                      onTap: () {
-                        Get.to(() => BottomNavigationBarPage());
+                    // Login Button
+                    // PrimaryButton(
+                    //   isLoading: authServices.isLoading,
+                    //   onTap: () {
+                    //     Get.offAll(() => const PersistentNavWrapper(child: ProductsPage(), initialIndex: 0));
+                    //   },
+                    //   title: 'Login',
+                    // ),
+                    Consumer<AuthServices>(
+                      builder: (context, authServices, _) {
+                        return PrimaryButton(
+                          isLoading: authServices.isLoading,
+                          onTap: () {
+                            if (formKey.currentState!.validate()) {
+                              authServices.login(emailController.text, passwordController.text);
+                            }
+                          },
+                          title: 'Login',
+                        );
                       },
-                      title: 'Login',
                     ),
 
                     // Login Link

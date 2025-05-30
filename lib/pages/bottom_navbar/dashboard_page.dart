@@ -1,70 +1,266 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/components/app_drawer.dart';
+import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_text.dart';
+import 'package:for_u_win/components/carousel_slider.dart';
+import 'package:for_u_win/components/result_row.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
+import 'package:for_u_win/data/services/dashboard/dashboard_services.dart';
+import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
-class DashboardPage extends StatelessWidget {
-  DashboardPage({super.key});
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
 
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  // Data List
   final List<Map<String, dynamic>> data = [
     {"image": "assets/images/premium.png", "title": "Royal-6"},
     {"image": "assets/images/trophy.png", "title": "Mega-4"},
     {"image": "assets/images/star.png", "title": "Thrill-3"},
   ];
   @override
+  void initState() {
+    Provider.of<DashboardServices>(context, listen: false).fetchDashboardData();
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Custom Drawer
       drawer: AppDrawer(),
-      appBar: AppBar(
-        title: AppText('Dashboard', fontSize: 16.sp, fontWeight: FontWeight.w600),
-      ),
-      body: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 14.w),
+      // AppBar
+      appBar: AppBar(title: AppText('Dashboard', fontSize: 16.sp, fontWeight: FontWeight.w600)),
+      body: SingleChildScrollView(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: 20.h),
-            ListView.builder(
-              itemCount: 3,
-              shrinkWrap: true,
-              physics: BouncingScrollPhysics(),
-              itemBuilder: (context, index) {
-                return Container(
-                  margin: EdgeInsets.only(bottom: 10.h),
-                  decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(10.r)),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-                    child: Stack(
+            // Banner section
+            BannerCarousel(),
+            // Daily Results Header
+            Padding(
+              padding: EdgeInsets.only(left: 14.w, top: 10.h, bottom: 6.h),
+              child: AppText('Daily Results', fontSize: 24.sp, fontWeight: FontWeight.bold),
+            ),
+            // Promotion Bar
+            Container(
+              color: const Color.fromARGB(221, 17, 17, 17),
+              width: double.infinity,
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Image.asset('assets/images/logo.png', height: 50.h),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: AppText(
+                        'BUY OUR PRODUCT & !\nGET FREE RAFFLE TICKETS',
+                        color: whiteColor,
+                        fontSize: 7.sp,
+                        fontWeight: FontWeight.bold,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      AppText('RESULTS', color: secondaryColor, fontWeight: FontWeight.bold),
+                      AppText('May 15, 2025', color: whiteColor, fontSize: 8.sp),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      AppText('DRAW TIME', fontWeight: FontWeight.bold, color: whiteColor, fontSize: 10.sp),
+                      AppText('11 PM EVERYDAY', fontWeight: FontWeight.bold, color: secondaryColor, fontSize: 10.sp),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Result Section
+            Container(
+              color: primaryColor,
+              width: double.infinity,
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  ResultRow(
+                    title: 'Royal',
+                    mainCircleColor: blackColor,
+                    textColor: whiteColor,
+                    mainNumber: 6,
+                    count: 6,
+                  ),
+                  SizedBox(height: 10.h),
+
+                  ResultRow(
+                    title: 'Mega',
+                    mainCircleColor: Colors.green,
+                    textColor: blackColor,
+                    mainNumber: 6,
+                    count: 4,
+                  ),
+                  SizedBox(height: 10.h),
+                  ResultRow(
+                    title: 'Thrill  ',
+                    mainCircleColor: Colors.red,
+                    textColor: Colors.green,
+                    mainNumber: 6,
+                    count: 3,
+                  ),
+                  SizedBox(height: 10.h),
+                ],
+              ),
+            ),
+
+            Container(
+              width: double.maxFinite,
+              color: blackColor,
+              padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AppText('Shop Online At ', color: whiteColor, fontSize: 8.sp),
+                      AppText('WWW.foryouwin.com', color: Colors.green, fontWeight: FontWeight.bold, fontSize: 10.sp),
+                    ],
+                  ),
+                  SizedBox(height: 4.h),
+                  Center(
+                    child: AppText(
+                      'Meydan GrandStand, 6th floor, Meydan Road,\nNad Al Sheba, Dubai, UAE',
+                      color: whiteColor,
+                      fontSize: 12.sp,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  SizedBox(height: 10.h),
+                  // Real-time QR codes
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        children: [
+                          QrImageView(
+                            data: "https://wa.me/923027697472",
+                            version: QrVersions.auto,
+                            size: 60.w,
+                            backgroundColor: whiteColor,
+                          ),
+                          SizedBox(height: 4.h),
+                          AppText('WhatsApp', color: whiteColor, fontSize: 10.sp),
+                        ],
+                      ),
+                      SizedBox(width: 20.w),
+                      Column(
+                        children: [
+                          QrImageView(
+                            data: "https://instagram.com/yourprofile",
+                            version: QrVersions.auto,
+                            size: 60.w,
+                            backgroundColor: whiteColor,
+                          ),
+                          SizedBox(height: 4.h),
+                          AppText('Instagram', color: whiteColor, fontSize: 10.sp),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 40.h),
+            // Entries Section
+            Consumer<DashboardServices>(
+              builder: (context, product, child) {
+                if (product.isLoading) {
+                  return Center(child: AppLoading());
+                }
+
+                final productList = product.dashboardData?.data?.products?.data;
+
+                if (productList == null || productList.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            Stack(
+                        Icon(Icons.block, size: 50, color: Colors.grey),
+                        SizedBox(height: 10),
+                        AppText('No products to show!', fontSize: 15.sp, color: Colors.grey),
+                        SizedBox(height: 50.h),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: productList.length,
+                  shrinkWrap: true,
+                  physics: BouncingScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    final products = productList[index];
+
+                    // Cycle through local data images
+                    final localImage = data[index % data.length]['image'];
+
+                    return GestureDetector(
+                      onTap: () {},
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14.w),
+                        child: Container(
+                          margin: EdgeInsets.only(bottom: 10.h),
+                          decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(10.r)),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+                            child: Column(
                               children: [
-                                Image.asset('assets/images/badge.png', height: 70.h),
-                                Padding(
-                                  padding: EdgeInsets.only(left: 18.w, top: 20.h),
-                                  child: Image.asset(data[index]['image'], height: 40.h),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        Image.asset('assets/images/badge.png', height: 70.h),
+                                        Positioned(left: 18.w, top: 20.h, child: Image.asset(localImage, height: 40.h)),
+                                      ],
+                                    ),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: AppText(products.name ?? "", fontSize: 16.sp, textAlign: TextAlign.center),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 10.h),
+                                Divider(thickness: 2, color: blackColor),
+                                SizedBox(height: 10.h),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  children: [
+                                    AppText('Entry Prize', fontSize: 16.sp),
+                                    AppText(products.price ?? "", fontSize: 16.sp),
+                                  ],
                                 ),
                               ],
                             ),
-                            AppText(data[index]['title'], fontSize: 16.sp),
-                          ],
-                        ),
-                        Padding(padding: EdgeInsets.only(top: 60.h), child: Divider(thickness: 2, color: blackColor)),
-                        Padding(
-                          padding: EdgeInsets.only(top: 80),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [AppText('Entry Prize', fontSize: 16.sp), AppText('AED 4.75', fontSize: 16.sp)],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
+            SizedBox(height: 30.h),
           ],
         ),
       ),
