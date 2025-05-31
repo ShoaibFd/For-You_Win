@@ -3,11 +3,12 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:for_u_win/data/app_urls.dart';
-import 'package:for_u_win/data/models/dashboard_model.dart';
+import 'package:for_u_win/data/models/dashboard_response.dart';
 import 'package:for_u_win/storage/shared_prefs.dart';
 import 'package:http/http.dart' as http;
 
 class DashboardServices with ChangeNotifier {
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
   final SharedPrefs _sharedPrefs = SharedPrefs();
@@ -24,11 +25,10 @@ class DashboardServices with ChangeNotifier {
         Uri.parse(dashboardUrl),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
-
+      // Successful Response!!
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         _dashboardData = DashboardResponse.fromJson(jsonData);
-        log('Dashboard data fetched successfully');
         log('Dashboard Response: ${response.statusCode}${response.body}');
       } else {
         log("Dashboard fetch failed: ${response.statusCode}");

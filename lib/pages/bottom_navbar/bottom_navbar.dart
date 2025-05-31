@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
-import 'package:for_u_win/pages/bottom_navbar/dashboard_page.dart';
+import 'package:for_u_win/pages/bottom_navbar/dashboard/dashboard_page.dart';
 import 'package:for_u_win/pages/bottom_navbar/persistent_nav_wrapper.dart';
 import 'package:for_u_win/pages/bottom_navbar/scanner_page.dart';
 import 'package:for_u_win/pages/products/products_page.dart';

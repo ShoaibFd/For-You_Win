@@ -4,7 +4,7 @@ import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/pages/auth/login_page.dart';
-import 'package:for_u_win/pages/bottom_navbar/dashboard_page.dart';
+import 'package:for_u_win/pages/bottom_navbar/dashboard/dashboard_page.dart';
 import 'package:for_u_win/pages/bottom_navbar/persistent_nav_wrapper.dart';
 import 'package:for_u_win/pages/invoice/invoice_page.dart';
 import 'package:for_u_win/pages/products/products_page.dart';
