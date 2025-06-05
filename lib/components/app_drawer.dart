@@ -8,7 +8,11 @@ import 'package:for_u_win/pages/bottom_navbar/dashboard/dashboard_page.dart';
 import 'package:for_u_win/pages/bottom_navbar/persistent_nav_wrapper.dart';
 import 'package:for_u_win/pages/invoice/invoice_page.dart';
 import 'package:for_u_win/pages/products/products_page.dart';
-import 'package:for_u_win/pages/tickets/tickets_search_page.dart';
+import 'package:for_u_win/pages/tickets/click_page.dart';
+import 'package:for_u_win/pages/tickets/foryou_page.dart';
+import 'package:for_u_win/pages/tickets/mega_page.dart';
+import 'package:for_u_win/pages/tickets/royal_page.dart';
+import 'package:for_u_win/pages/tickets/thrill_page.dart';
 import 'package:for_u_win/storage/shared_prefs.dart';
 import 'package:get/get.dart';
 
@@ -75,7 +79,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
-                  Get.to(() => TicketsSearchPage());
+                  Get.to(() => RoyalPage());
                 },
                 leading: Image.asset('assets/images/premium.png', height: 30.h),
                 title: AppText('Royal-6', fontSize: 14.sp),
@@ -86,7 +90,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
-                  Get.to(() => TicketsSearchPage());
+                  Get.to(() => MegaPage());
                 },
                 leading: Image.asset('assets/images/trophy.png', height: 30.h),
                 title: AppText('Mega-3', fontSize: 14.sp),
@@ -97,10 +101,32 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
-                  Get.to(() => TicketsSearchPage());
+                  Get.to(() => ThrillPage());
                 },
                 leading: Image.asset('assets/images/star.png', height: 30.h),
                 title: AppText('Thrill-3', fontSize: 14.sp),
+              ),
+            ),
+            // Click-2 Button!
+            Padding(
+              padding: EdgeInsets.only(left: 50.w),
+              child: ListTile(
+                onTap: () {
+                  Get.to(() => ClickPage());
+                },
+                leading: Image.asset('assets/images/star.png', height: 30.h),
+                title: AppText('Click-2', fontSize: 14.sp),
+              ),
+            ),
+            // 4uwin Button!
+            Padding(
+              padding: EdgeInsets.only(left: 50.w),
+              child: ListTile(
+                onTap: () {
+                  Get.to(() => ForYouPage());
+                },
+                leading: Image.asset('assets/images/star.png', height: 30.h),
+                title: AppText('4uwin', fontSize: 14.sp),
               ),
             ),
           ],

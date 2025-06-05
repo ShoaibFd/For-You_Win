@@ -1,15 +1,20 @@
-// ignore_for_file: deprecated_member_use, unrelated_type_equality_checks
+// ignore_for_file: deprecated_member_use
 
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
-import 'package:for_u_win/components/app_text.dart';
-import 'package:for_u_win/core/constants/app_colors.dart';
+import 'package:for_u_win/components/app_loading.dart';
+import 'package:for_u_win/components/app_snackbar.dart';
+import 'package:for_u_win/data/models/tickets/check_ticket_response.dart';
+import 'package:for_u_win/data/services/tickets/ticket_services.dart';
+import 'package:for_u_win/pages/tickets/click_page.dart';
+import 'package:for_u_win/pages/tickets/foryou_page.dart';
+import 'package:for_u_win/pages/tickets/mega_page.dart';
+import 'package:for_u_win/pages/tickets/royal_page.dart';
+import 'package:for_u_win/pages/tickets/thrill_page.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-
-import '../tickets/tickets_search_page.dart';
-
+import 'package:provider/provider.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -22,48 +27,135 @@ class _ScannerPageState extends State<ScannerPage> {
   bool _isScanned = false;
   final MobileScannerController _controller = MobileScannerController();
 
-  // Handle different QR code types
-  void _handleQRCode(String code) {
+  Future<void> _handleQRCode(String code) async {
     log("Scanned code: $code");
-
-    // Reset scanning state after a delay to allow for new scans
+    setState(() => _isScanned = true);
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isScanned = false;
-        });
-      }
+      if (mounted) setState(() => _isScanned = false);
     });
 
-    if (code.startsWith("ticket:")) {
-      // QR code for tickets
-      final ticketId = code.substring(7); // Remove "ticket:" prefix
-      Get.to(() => TicketsSearchPage(), arguments: {'ticketId': ticketId});
-    } else if (code.startsWith("http://") || code.startsWith("https://")) {
-      // Handle URL QR codes
-      // You could launch the URL or navigate to a web view
-      Get.snackbar(
-        'URL Detected',
-        'Scanned URL: $code',
-        backgroundColor: Colors.green,
-        colorText: whiteColor,
-        duration: const Duration(seconds: 3),
-      );
+    final ticketProvider = Provider.of<TicketServices>(context, listen: false);
 
-      // Uncomment if you have a WebViewPage
-      // Get.to(() => WebViewPage(), arguments: {'url': code});
-    } else {
-      // Default case - unrecognized format
-      Get.snackbar(
-        'QR Code Scanned',
-        'Unknown format: $code',
-        backgroundColor: primaryColor,
-        colorText: whiteColor,
-        duration: const Duration(seconds: 3),
-      );
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: AppLoading()));
 
-      // You could still navigate to a default page
-      Get.to(() => TicketsSearchPage(), arguments: {'rawData': code});
+    try {
+      String? ticketId;
+
+      if (code.startsWith("ticket:")) {
+        ticketId = code.substring(7);
+      } else if (code.contains('/check-ticket/')) {
+        final uri = Uri.parse(code);
+        final segments = uri.pathSegments;
+        ticketId = segments.isNotEmpty ? segments.last : null;
+      }
+
+      if (ticketId != null && ticketId.isNotEmpty) {
+        final response = await ticketProvider.checkTicket(ticketId);
+        Get.back(); 
+
+        if (response != null && response.status == "success") {
+          Get.to(
+            () => _getPageBasedOnProductName(response.data?.productName),
+            arguments: {'ticketId': ticketId, 'ticketData': response.data},
+          );
+        } else {
+          _navigateBasedOnProductName(ticketId, response);
+        }
+      } else {
+        Get.back(); 
+        AppSnackbar.showInfoSnackbar('Could not extract ticket ID from the QR code.');
+      }
+    } catch (e) {
+      Get.back();
+      log("Error handling QR code: $e");
+      AppSnackbar.showErrorSnackbar('Something went wrong while processing the ticket.');
+    }
+  }
+
+  void _navigateBasedOnProductName(String ticketId, CheckTicketResponse? response) {
+    String? productName;
+
+    if (response != null) {
+      if (response.status == "success") {
+        productName = response.data?.productName;
+        log("Success: Product name from data: $productName");
+      } else if (response.status == "error") {
+        try {
+          productName = response.errors?.productName;
+          log("Error: Product name from errors object: $productName");
+        } catch (e) {
+          log("Could not get product name from errors object: $e");
+        }
+
+        if (productName == null) {
+          String message = response.message;
+          RegExp regex = RegExp(r'for ([A-Za-z0-9]+-\d+)');
+          Match? match = regex.firstMatch(message);
+
+          if (match != null) {
+            productName = match.group(1);
+            log("Extracted product name from error message: $productName");
+          } else {
+            log("Could not extract product name from error message: $message");
+
+            // Try another regex pattern for different message formats
+            RegExp altRegex = RegExp(r'([A-Za-z0-9]+-\d+)');
+            Match? altMatch = altRegex.firstMatch(message);
+            if (altMatch != null) {
+              productName = altMatch.group(1);
+              log("Extracted product name with alternative regex: $productName");
+            }
+          }
+        }
+      }
+    }
+
+    log("Final product name for navigation: $productName");
+    Widget destinationPage = _getPageBasedOnProductName(productName);
+
+    String message = response?.message ?? 'This ticket does not have any winners.';
+    AppSnackbar.showInfoSnackbar(message);
+
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      Get.to(
+        () => destinationPage,
+        arguments: {
+          'ticket_id': ticketId,
+          'tickets': response?.data,
+          'has_winners': false,
+          'product_name': productName,
+        },
+      );
+    });
+  }
+
+  Widget _getPageBasedOnProductName(String? productName) {
+    log("Getting page for product name: $productName");
+
+    if (productName == null) {
+      log("Product name is null, defaulting to RoyalPage");
+      return RoyalPage();
+    }
+
+    switch (productName.toLowerCase()) {
+      case 'royal-6':
+        log("Navigating to RoyalPage");
+        return RoyalPage();
+      case 'mega-4':
+        log("Navigating to MegaPage");
+        return MegaPage();
+      case '4uwin-5':
+        log("Navigating to ForYouPage");
+        return ForYouPage();
+      case 'thrill-3':
+        log("Navigating to ThrillPage");
+        return ThrillPage();
+      case 'click-2':
+        log("Navigating to ClickPage");
+        return ClickPage();
+      default:
+        log("Unknown product name: $productName, defaulting to RoyalPage");
+        return RoyalPage();
     }
   }
 
@@ -77,27 +169,8 @@ class _ScannerPageState extends State<ScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:  AppText('QR Scanner'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         actions: [
-          IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: _controller,
-              builder: (context, state, child) {
-                if (state != true) {
-                  return const Icon(Icons.flash_off, color: Colors.grey);
-                }
-                return ValueListenableBuilder(
-                  valueListenable: _controller,
-                  builder: (context, enabled, child) {
-                    return Icon(Icons.flash_on, color: secondaryColor);
-                  },
-                );
-              },
-            ),
-            onPressed: () => _controller.toggleTorch(),
-          ),
+          IconButton(icon: const Icon(Icons.flash_on, color: Colors.white), onPressed: () => _controller.toggleTorch()),
           IconButton(
             icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
             onPressed: () => _controller.switchCamera(),
@@ -108,23 +181,15 @@ class _ScannerPageState extends State<ScannerPage> {
         children: [
           MobileScanner(
             controller: _controller,
-            onDetect: (BarcodeCapture capture) {
+            onDetect: (capture) {
               if (!_isScanned) {
-                final List<Barcode> barcodes = capture.barcodes;
-                if (barcodes.isNotEmpty) {
-                  final String? code = barcodes.first.rawValue;
-                  setState(() {
-                    _isScanned = true;
-                  });
-
-                  if (code != null) {
-                    _handleQRCode(code);
-                  }
+                final code = capture.barcodes.first.rawValue;
+                if (code != null) {
+                  _handleQRCode(code);
                 }
               }
             },
           ),
-          // Scanner overlay with gradient effect
           Container(
             color: Colors.black.withOpacity(0.5),
             child: Center(
@@ -133,15 +198,11 @@ class _ScannerPageState extends State<ScannerPage> {
                 height: 260,
                 decoration: BoxDecoration(color: Colors.transparent, border: Border.all(color: Colors.transparent)),
                 child: Stack(
-                  children: [
-                    // This creates the cutout effect
-                    ClipPath(clipper: _ScannerOverlayClipper(), child: Container(color: Colors.transparent)),
-                  ],
+                  children: [ClipPath(clipper: _ScannerOverlayClipper(), child: Container(color: Colors.transparent))],
                 ),
               ),
             ),
           ),
-          // Scan area indicator
           Center(
             child: Container(
               width: 250,
@@ -152,7 +213,6 @@ class _ScannerPageState extends State<ScannerPage> {
               ),
             ),
           ),
-          // Scanning text
           Align(
             alignment: Alignment.topCenter,
             child: Padding(
@@ -163,7 +223,6 @@ class _ScannerPageState extends State<ScannerPage> {
               ),
             ),
           ),
-          // Scanning animation
           if (!_isScanned) Center(child: SizedBox(width: 250, height: 250, child: _ScanningAnimation())),
         ],
       ),
@@ -171,7 +230,6 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 }
 
-// A simple scanning animation
 class _ScanningAnimation extends StatefulWidget {
   @override
   State<_ScanningAnimation> createState() => _ScanningAnimationState();
@@ -185,7 +243,6 @@ class _ScanningAnimationState extends State<_ScanningAnimation> with SingleTicke
   void initState() {
     super.initState();
     _controller = AnimationController(duration: const Duration(seconds: 2), vsync: this)..repeat(reverse: true);
-
     _animation = Tween<double>(begin: 0, end: 250).animate(_controller);
   }
 
@@ -208,7 +265,6 @@ class _ScanningAnimationState extends State<_ScanningAnimation> with SingleTicke
 
 class _ScanLinePainter extends CustomPainter {
   final double position;
-
   _ScanLinePainter(this.position);
 
   @override
@@ -218,7 +274,6 @@ class _ScanLinePainter extends CustomPainter {
           ..color = Colors.green.withOpacity(0.8)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2;
-
     canvas.drawLine(Offset(0, position), Offset(size.width, position), paint);
   }
 
@@ -226,28 +281,19 @@ class _ScanLinePainter extends CustomPainter {
   bool shouldRepaint(_ScanLinePainter oldDelegate) => position != oldDelegate.position;
 }
 
-// Clipper for creating scan area cutout
 class _ScannerOverlayClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-    final Path path = Path();
-
-    // Create a cutout rectangle in the middle
+    final path = Path();
     const double scanAreaSize = 250;
     final double left = (size.width - scanAreaSize) / 2;
     final double top = (size.height - scanAreaSize) / 2;
     final double right = left + scanAreaSize;
     final double bottom = top + scanAreaSize;
 
-    // Draw outer rectangle
     path.addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    // Draw inner rectangle (cutout)
     path.addRRect(RRect.fromRectAndRadius(Rect.fromLTRB(left, top, right, bottom), const Radius.circular(12)));
-
-    // Use even-odd fill type to create cutout effect
     path.fillType = PathFillType.evenOdd;
-
     return path;
   }
 

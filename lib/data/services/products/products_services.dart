@@ -4,9 +4,11 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
 import 'package:for_u_win/data/app_urls.dart';
-import 'package:for_u_win/data/models/buy_now_model.dart';
-import 'package:for_u_win/data/models/products_detail_response.dart';
-import 'package:for_u_win/data/models/products_response.dart';
+import 'package:for_u_win/data/models/products/buy_now_response.dart';
+import 'package:for_u_win/data/models/products/invoice_response.dart';
+import 'package:for_u_win/data/models/products/products_detail_response.dart';
+import 'package:for_u_win/data/models/products/products_response.dart';
+import 'package:for_u_win/pages/products/generate_invoice_page.dart';
 import 'package:for_u_win/pages/products/model/purchase_ticket_response.dart';
 import 'package:for_u_win/pages/products/purchase_page.dart';
 import 'package:for_u_win/storage/shared_prefs.dart';
@@ -16,19 +18,23 @@ import 'package:http/http.dart' as http;
 class ProductsServices with ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+
   final SharedPrefs _sharedPrefs = SharedPrefs();
+
   ProductsResponse? _productsData;
   ProductsResponse? get productsData => _productsData;
 
   ProductsDetailsResponse? _productsDetailData;
   ProductsDetailsResponse? get productsDetailData => _productsDetailData;
 
+  InvoiceResponse? _invoiceResponse;
+  InvoiceResponse? get invoiceResponse => _invoiceResponse;
+
   // Fetch Products Function!!
   Future<void> fetchProducts() async {
-    _isLoading = true;
-    notifyListeners();
-
     try {
+      _isLoading = true;
+      Future.microtask(() => notifyListeners());
       final token = await _sharedPrefs.getToken();
       final response = await http.get(
         Uri.parse(productsUrl),
@@ -47,15 +53,15 @@ class ProductsServices with ChangeNotifier {
     }
 
     _isLoading = false;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
-// Buy Products Function!!
+  // Buy Products Function!!
   Future<void> buyProduct(BuyNowModel request, int productId) async {
     try {
       final token = await _sharedPrefs.getToken();
       _isLoading = true;
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
       final response = await http.post(
         Uri.parse('$buyUrl/$productId'),
         body: jsonEncode(request.toJson()),
@@ -69,15 +75,15 @@ class ProductsServices with ChangeNotifier {
       log('Error During Buying Products: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
     }
   }
 
   // Fetch Products Details Function!!
   Future<void> fetchProductsDetails(int productId) async {
-    _isLoading = true;
-    notifyListeners();
     try {
+      _isLoading = true;
+      Future.microtask(() => notifyListeners());
       final token = await _sharedPrefs.getToken();
       final response = await http.get(
         Uri.parse("$productsDetailUrl$productId"),
@@ -97,16 +103,15 @@ class ProductsServices with ChangeNotifier {
     }
 
     _isLoading = false;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
-   
-// Buy Products Function!!
-  Future<void> purchaseTicket(PurchaseTicketModel request) async {
+  // Buy Products Function!!
+  purchaseTicket(PurchaseTicketModel request) async {
     try {
       final token = await _sharedPrefs.getToken();
       _isLoading = true;
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
       final response = await http.post(
         Uri.parse(purchaseTicketUrl),
         body: jsonEncode(request.toJson()),
@@ -114,14 +119,64 @@ class ProductsServices with ChangeNotifier {
       );
       log('Response in Purchase Ticket: ${response.statusCode}:${response.body}');
       if (response.statusCode == 200 || response.statusCode == 201) {
-       AppSnackbar.showSuccessSnackbar('Purchased Successfully!');
+        final jsonData = jsonDecode(response.body);
+        final orderNumber = jsonData['orderNumber'];
+        AppSnackbar.showSuccessSnackbar(jsonData['message']);
+        return orderNumber;
+      } else {
+        final jsonData = jsonDecode(response.body);
+        AppSnackbar.showErrorSnackbar(jsonData['message']);
       }
     } catch (e) {
       log('Error During Purchasing Products: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
     }
   }
 
+  Future<InvoiceResponse?> fetchInvoice(int orderNumber, List numbers, {int? index}) async {
+    try {
+      _isLoading = true;
+      Future.microtask(() => notifyListeners());
+      final token = await _sharedPrefs.getToken();
+      final response = await http.get(
+        Uri.parse('$invoiceUrl/$orderNumber'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+      );
+
+      log('Status Code: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        final invoice = InvoiceResponse.fromJson(jsonData);
+        _invoiceResponse = invoice;
+        Get.to(
+          () => GenerateInvoicePage(
+            numbers: numbers,
+            img: invoice.productImage,
+            orderNumber: '$orderNumber',
+            productName: invoice.productName,
+            status: invoice.orderStatus,
+            orderDate: invoice.orderDate,
+            amount: invoice.totalAmount,
+            purchasedBy: invoice.purchasedBy,
+            vat: invoice.vat,
+            prize: invoice.prize,
+            address: invoice.address,
+            drawDate: invoice.drawDate,
+          ),
+        );
+        return invoice;
+      } else {
+        log('Failed to fetch invoice. Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      log('Error fetching invoice: $e');
+    }
+
+    _isLoading = false;
+    Future.microtask(() => notifyListeners());
+    return null;
+  }
 }

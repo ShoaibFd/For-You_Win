@@ -43,9 +43,12 @@ dependencies:
   http: ^1.4.0
   shared_preferences: ^2.5.3
   mobile_scanner: ^7.0.0
-  pdf: ^3.11.3
-  printing: ^5.14.2
   provider: ^6.1.5
+  pdf: ^3.10.4
+  printing: ^5.11.0
+  share_plus: ^7.2.1
+  path_provider: ^2.1.1
+  flutter_pdfview: ^1.4.0+1
 
 dev_dependencies:
   flutter_test:

@@ -1,14 +1,13 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/components/app_drawer.dart';
 import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
-import 'package:for_u_win/data/models/buy_now_model.dart';
 import 'package:for_u_win/data/providers/products_provider.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
+import 'package:for_u_win/pages/products/purchase_page.dart';
+import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -19,13 +18,29 @@ class ProductsPage extends StatefulWidget {
 }
 
 class _ProductsPageState extends State<ProductsPage> {
+  bool _initialized = false;
+
   @override
   void initState() {
-    Provider.of<ProductsServices>(context, listen: false).fetchProducts();
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ProductsServices>(context, listen: false).fetchProducts();
+    });
   }
 
-  bool isLoading = false;
+  void _initializeQuantities(QuantityProvider quantitiesProvider, int length) {
+    if (!_initialized && quantitiesProvider.quantities.length != length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          quantitiesProvider.initialize(length);
+          setState(() {
+            _initialized = true;
+          });
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -38,13 +53,15 @@ class _ProductsPageState extends State<ProductsPage> {
           }
 
           final productList = products.productsData?.data;
-
           if (productList == null || productList.isEmpty) {
             return Center(child: AppText('No Products!!'));
           }
 
           if (quantitiesProvider.quantities.length != productList.length) {
-            quantitiesProvider.initialize(productList.length);
+            _initializeQuantities(quantitiesProvider, productList.length);
+            if (!_initialized) {
+              return Center(child: AppLoading());
+            }
           }
 
           return Padding(
@@ -54,6 +71,11 @@ class _ProductsPageState extends State<ProductsPage> {
               physics: const BouncingScrollPhysics(),
               itemBuilder: (context, index) {
                 final product = productList[index];
+
+                if (index >= quantitiesProvider.quantities.length) {
+                  return const SizedBox.shrink();
+                }
+
                 return Container(
                   width: double.maxFinite,
                   margin: EdgeInsets.only(bottom: 6.h, top: 10.h),
@@ -65,7 +87,15 @@ class _ProductsPageState extends State<ProductsPage> {
                         height: 110.h,
                         width: 90.w,
                         alignment: Alignment.center,
-                        child: Image.network(product.image ?? "", height: 90.h, width: 90.w, fit: BoxFit.contain),
+                        child: Image.network(
+                          product.image ?? "",
+                          height: 90.h,
+                          width: 90.w,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(Icons.image_not_supported, size: 50.sp);
+                          },
+                        ),
                       ),
                       SizedBox(width: 12.w),
                       Expanded(
@@ -94,73 +124,53 @@ class _ProductsPageState extends State<ProductsPage> {
                                         IconButton(
                                           icon: Icon(Icons.remove, size: 16.sp),
                                           onPressed: () {
-                                            quantitiesProvider.decrease(index);
+                                            if (index < quantitiesProvider.quantities.length) {
+                                              quantitiesProvider.decrease(index);
+                                            }
                                           },
                                         ),
                                         AppText(
-                                          quantitiesProvider.quantities[index].toString(),
+                                          (index < quantitiesProvider.quantities.length
+                                                  ? quantitiesProvider.quantities[index]
+                                                  : 1)
+                                              .toString(),
                                           fontSize: 14.sp,
                                           fontWeight: FontWeight.w500,
                                         ),
                                         IconButton(
                                           icon: Icon(Icons.add, size: 16.sp),
                                           onPressed: () {
-                                            // final quantity = quantitiesProvider.quantities[index];
-                                            // final productId = product.id.toString();
-                                            // bool success = await ProductOrderService.postOrder(
-                                            //   productId: productId,
-                                            //   quantity: quantity,
-                                            // );
-                                            quantitiesProvider.increase(index);
+                                            if (index < quantitiesProvider.quantities.length) {
+                                              quantitiesProvider.increase(index);
+                                            }
                                           },
                                         ),
                                       ],
                                     ),
                                   ),
                                   SizedBox(width: 12.w),
-                                  Consumer<ProductsServices>(
-                                    builder: (context, products, child) {
-                                      return GestureDetector(
-                                        onTap: () {
-                                          final quantity = quantitiesProvider.quantities[index];
-                                          final productId = int.tryParse(product.id.toString()) ?? 0;
+                                  // Buy Now Button!!
+                                  GestureDetector(
+                                    onTap: () {
+                                      final quantity =
+                                          index < quantitiesProvider.quantities.length
+                                              ? quantitiesProvider.quantities[index]
+                                              : 1;
+                                      final productId = int.tryParse(product.id.toString()) ?? 0;
 
-                                          final price = double.tryParse(product.price.toString()) ?? 0;
-                                          final vat = double.tryParse(product.vat.toString()) ?? 0;
-
-                                          final double vatAmount = (price * vat) / 100;
-                                          log(
-                                            'ProductId: $productId,Quantity: $quantity, Vat: $vat, , price:$price, vatPercentage:${vatAmount.toStringAsFixed(2)}',
-                                          );
-
-                                          products.buyProduct(
-                                            BuyNowModel(
-                                              productId: productId,
-                                              quantity: quantity,
-                                              vatPercentage: vatAmount.toStringAsFixed(2),
-                                              vat: vat,
-                                              totalAmount: price,
-                                            ),
-                                            productId,
-                                          );
-                                        },
-
-                                        child: Container(
-                                          height: 34.h,
-                                          decoration: BoxDecoration(
-                                            color: secondaryColor,
-                                            borderRadius: BorderRadius.circular(6.r),
-                                          ),
-                                          padding: EdgeInsets.symmetric(horizontal: 14.w),
-                                          child: Center(
-                                            child:
-                                                products.isLoading
-                                                    ? AppLoading(color: primaryColor)
-                                                    : AppText('Buy Now', fontSize: 14.sp, fontWeight: FontWeight.w500),
-                                          ),
-                                        ),
-                                      );
+                                      Get.to(() => PurchasePage(productId: productId, quantity: quantity));
                                     },
+                                    child: Container(
+                                      height: 34.h,
+                                      decoration: BoxDecoration(
+                                        color: secondaryColor,
+                                        borderRadius: BorderRadius.circular(6.r),
+                                      ),
+                                      padding: EdgeInsets.symmetric(horizontal: 14.w),
+                                      child: Center(
+                                        child: AppText('Buy Now', fontSize: 14.sp, fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),

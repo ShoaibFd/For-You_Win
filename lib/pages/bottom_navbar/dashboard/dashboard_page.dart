@@ -105,7 +105,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
                     return GestureDetector(
                       onTap: () {
-                        Get.to(() => ProductDetailPage());
+                        product.fetchHistory(products.name ?? "");
+                        Get.to(() => ProductDetailPage(pageName: products.name ?? ""));
                       },
                       child: Padding(
                         padding: EdgeInsets.symmetric(horizontal: 14.w),

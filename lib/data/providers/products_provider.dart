@@ -11,7 +11,9 @@ class QuantityProvider extends ChangeNotifier {
   }
 
   void increase(int index) {
-    _quantities[index]++;
+    if (_quantities[index] < 10) {
+      _quantities[index]++;
+    }
     notifyListeners();
   }
 

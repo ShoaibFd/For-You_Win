@@ -5,6 +5,8 @@ import 'package:for_u_win/core/utils/dismiss_keyboard.dart';
 import 'package:for_u_win/data/providers/products_provider.dart';
 import 'package:for_u_win/data/services/auth/auth_services.dart';
 import 'package:for_u_win/data/services/dashboard/dashboard_services.dart';
+import 'package:for_u_win/data/services/invoice/invoice_services.dart';
+import 'package:for_u_win/data/services/tickets/ticket_services.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
 import 'package:for_u_win/pages/splash/splash_page.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
@@ -18,7 +20,9 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthServices()),
         ChangeNotifierProvider(create: (_) => DashboardServices()),
         ChangeNotifierProvider(create: (_) => ProductsServices()),
-         ChangeNotifierProvider(create: (_) => QuantityProvider()),
+        ChangeNotifierProvider(create: (_) => TicketServices()),
+        ChangeNotifierProvider(create: (_) => QuantityProvider()),
+        ChangeNotifierProvider(create: (_) => InvoiceServices()),
       ],
       child: MyApp(),
     ),
