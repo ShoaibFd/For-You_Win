@@ -23,8 +23,12 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ProductsServices>(context, listen: false).fetchProducts();
+    // Solution 1: Only fetch if data doesn't exist
+    Future.microtask(() {
+      final productsService = Provider.of<ProductsServices>(context, listen: false);
+      if (productsService.productsData?.data == null || productsService.productsData!.data.isEmpty) {
+        productsService.fetchProducts();
+      }
     });
   }
 
@@ -54,7 +58,16 @@ class _ProductsPageState extends State<ProductsPage> {
 
           final productList = products.productsData?.data;
           if (productList == null || productList.isEmpty) {
-            return Center(child: AppText('No Products!!'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.red, size: 26.sp),
+                  SizedBox(height: 4.h),
+                  AppText('No Products!!', color: Colors.red),
+                ],
+              ),
+            );
           }
 
           if (quantitiesProvider.quantities.length != productList.length) {

@@ -9,6 +9,7 @@ import 'package:for_u_win/data/models/tickets/check_ticket_response.dart';
 import 'package:for_u_win/data/services/tickets/ticket_services.dart';
 import 'package:for_u_win/pages/tickets/click_page.dart';
 import 'package:for_u_win/pages/tickets/foryou_page.dart';
+import 'package:for_u_win/pages/tickets/info_page.dart';
 import 'package:for_u_win/pages/tickets/mega_page.dart';
 import 'package:for_u_win/pages/tickets/royal_page.dart';
 import 'package:for_u_win/pages/tickets/thrill_page.dart';
@@ -51,7 +52,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
       if (ticketId != null && ticketId.isNotEmpty) {
         final response = await ticketProvider.checkTicket(ticketId);
-        Get.back(); 
+        Get.back();
 
         if (response != null && response.status == "success") {
           Get.to(
@@ -62,7 +63,7 @@ class _ScannerPageState extends State<ScannerPage> {
           _navigateBasedOnProductName(ticketId, response);
         }
       } else {
-        Get.back(); 
+        Get.back();
         AppSnackbar.showInfoSnackbar('Could not extract ticket ID from the QR code.');
       }
     } catch (e) {
@@ -74,21 +75,17 @@ class _ScannerPageState extends State<ScannerPage> {
 
   void _navigateBasedOnProductName(String ticketId, CheckTicketResponse? response) {
     String? productName;
+    String? message = response?.message;
 
     if (response != null) {
       if (response.status == "success") {
         productName = response.data?.productName;
         log("Success: Product name from data: $productName");
       } else if (response.status == "error") {
-        try {
-          productName = response.errors?.productName;
-          log("Error: Product name from errors object: $productName");
-        } catch (e) {
-          log("Could not get product name from errors object: $e");
-        }
+        productName = response.errors?.productName;
+        log("Error: Product name from errors object: $productName");
 
-        if (productName == null) {
-          String message = response.message;
+        if (productName == null && message != null) {
           RegExp regex = RegExp(r'for ([A-Za-z0-9]+-\d+)');
           Match? match = regex.firstMatch(message);
 
@@ -113,8 +110,7 @@ class _ScannerPageState extends State<ScannerPage> {
     log("Final product name for navigation: $productName");
     Widget destinationPage = _getPageBasedOnProductName(productName);
 
-    String message = response?.message ?? 'This ticket does not have any winners.';
-    AppSnackbar.showInfoSnackbar(message);
+    AppSnackbar.showInfoSnackbar(message ?? 'Winning numbers not announced for this ticket today.');
 
     Future.delayed(const Duration(milliseconds: 1500), () {
       Get.to(
@@ -133,29 +129,23 @@ class _ScannerPageState extends State<ScannerPage> {
     log("Getting page for product name: $productName");
 
     if (productName == null) {
-      log("Product name is null, defaulting to RoyalPage");
-      return RoyalPage();
+      return InfoPage();
     }
 
     switch (productName.toLowerCase()) {
-      case 'royal-6':
-        log("Navigating to RoyalPage");
-        return RoyalPage();
+      case 'click-2':
+        return ClickPage();
+      case 'thrill-3':
+        return ThrillPage();
       case 'mega-4':
-        log("Navigating to MegaPage");
         return MegaPage();
       case '4uwin-5':
-        log("Navigating to ForYouPage");
         return ForYouPage();
-      case 'thrill-3':
-        log("Navigating to ThrillPage");
-        return ThrillPage();
-      case 'click-2':
-        log("Navigating to ClickPage");
-        return ClickPage();
-      default:
-        log("Unknown product name: $productName, defaulting to RoyalPage");
+      case 'royal-6':
         return RoyalPage();
+
+      default:
+        return InfoPage();
     }
   }
 
@@ -230,6 +220,7 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 }
 
+// Scan line animation
 class _ScanningAnimation extends StatefulWidget {
   @override
   State<_ScanningAnimation> createState() => _ScanningAnimationState();

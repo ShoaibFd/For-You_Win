@@ -187,12 +187,12 @@ class PdfViewerBottomSheet extends StatelessWidget {
             margin: EdgeInsets.only(top: 8.h),
             width: 40.w,
             height: 4.h,
-            decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2.r)),
+            decoration: BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(2.r)),
           ),
           // Header
           Container(
             padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade300))),
+
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

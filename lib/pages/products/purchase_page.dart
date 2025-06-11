@@ -17,14 +17,14 @@ import 'package:provider/provider.dart';
 class PurchasePage extends StatefulWidget {
   const PurchasePage({super.key, this.productId, this.quantity = 1});
   final int? productId;
-  final int quantity; 
+  final int quantity;
 
   @override
   State<PurchasePage> createState() => _PurchasePageState();
 }
 
 class _PurchasePageState extends State<PurchasePage> {
-  // Controllers 
+  // Controllers
   List<List<TextEditingController>> allTicketControllers = [];
   List<Map<String, bool>> allTicketGameTypes = [];
   List<List<FocusNode>> allTicketFocusNodes = [];
@@ -402,7 +402,6 @@ class _PurchasePageState extends State<PurchasePage> {
 
                               await product.fetchInvoice(orderNumber, numbers);
                               // PdfService.genera
-                              
                             }
                           }
                         },
