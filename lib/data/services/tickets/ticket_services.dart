@@ -13,12 +13,11 @@ class TicketServices with ChangeNotifier {
   bool get isLoading => _isLoading;
   final SharedPrefs _sharedPrefs = SharedPrefs();
 
-CheckTicketResponse? _checkTicketResponse;
-String? errorMessage;
+  CheckTicketResponse? _checkTicketResponse;
+  String? errorMessage;
 
-
-CheckTicketResponse? get checkTicketResponse => _checkTicketResponse;
-String? get error => errorMessage;
+  CheckTicketResponse? get checkTicketResponse => _checkTicketResponse;
+  String? get error => errorMessage;
   Map<String, dynamic>? _royalTicketData;
   Map<String, dynamic>? get royalTicketData => _royalTicketData;
 
@@ -33,7 +32,6 @@ String? get error => errorMessage;
 
   Map<String, dynamic>? _clickTicketData;
   Map<String, dynamic>? get clickTicketData => _clickTicketData;
-
 
   // Royal Ticket Search Function!!
   Future<void> royalTicketSearch(String orderNumber) async {
@@ -53,7 +51,6 @@ String? get error => errorMessage;
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-        // Check if status is 'success'
         if (responseData['status'] == 'success') {
           _royalTicketData = responseData;
 
@@ -66,10 +63,11 @@ String? get error => errorMessage;
           _royalTicketData = null;
           AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
         }
+      } else if (response.statusCode == 404) {
+        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _royalTicketData = null;
-        AppSnackbar.showErrorSnackbar('Failed to fetch ticket: ${response.statusCode}');
       }
     } catch (e) {
       log("Ticket fetch error: $e");
@@ -111,10 +109,11 @@ String? get error => errorMessage;
           _foryouTicketData = null;
           AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
         }
+      } else if (response.statusCode == 404) {
+        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _foryouTicketData = null;
-        AppSnackbar.showErrorSnackbar('Failed to fetch ticket: ${response.statusCode}');
       }
     } catch (e) {
       log("Ticket fetch error: $e");
@@ -156,10 +155,11 @@ String? get error => errorMessage;
           _megaTicketData = null;
           AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
         }
+      } else if (response.statusCode == 404) {
+        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _megaTicketData = null;
-        AppSnackbar.showErrorSnackbar('Failed to fetch ticket: ${response.statusCode}');
       }
     } catch (e) {
       log("Ticket fetch error: $e");
@@ -201,10 +201,11 @@ String? get error => errorMessage;
           _thrillTicketData = null;
           AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
         }
+      } else if (response.statusCode == 404) {
+        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _thrillTicketData = null;
-        AppSnackbar.showErrorSnackbar('Failed to fetch ticket: ${response.statusCode}');
       }
     } catch (e) {
       log("Ticket fetch error: $e");
@@ -246,10 +247,11 @@ String? get error => errorMessage;
           _clickTicketData = null;
           AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
         }
+      } else if (response.statusCode == 404) {
+        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _clickTicketData = null;
-        AppSnackbar.showErrorSnackbar('Failed to fetch ticket: ${response.statusCode}');
       }
     } catch (e) {
       log("Ticket fetch error: $e");
@@ -289,31 +291,29 @@ String? get error => errorMessage;
   }
 
   // Check Ticket Function!!
-Future<CheckTicketResponse?> checkTicket(String orderNumber) async {
-  try {
-    final token = await _sharedPrefs.getToken();
-    _isLoading = true;
-    Future.microtask(() => notifyListeners());
-    final response = await http.get(
-      Uri.parse('$checkTicketUrl/$orderNumber'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    log('Check Ticket Response: ${response.statusCode}, ${response.body}');
-    if (response.statusCode == 200) {
-      final jsonData = jsonDecode(response.body);
-      _checkTicketResponse = CheckTicketResponse.fromJson(jsonData);
-      return _checkTicketResponse; 
+  Future<CheckTicketResponse?> checkTicket(String orderNumber) async {
+    try {
+      final token = await _sharedPrefs.getToken();
+      _isLoading = true;
+      Future.microtask(() => notifyListeners());
+      final response = await http.get(
+        Uri.parse('$checkTicketUrl/$orderNumber'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      log('Check Ticket Response: ${response.statusCode}, ${response.body}');
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        _checkTicketResponse = CheckTicketResponse.fromJson(jsonData);
+        return _checkTicketResponse;
+      }
+    } catch (e) {
+      log('Error during check Ticket: $e');
+    } finally {
+      _isLoading = false;
+      Future.microtask(() => notifyListeners());
     }
-  } catch (e) {
-    log('Error during check Ticket: $e');
-  } finally {
-    _isLoading = false;
-    Future.microtask(() => notifyListeners());
+    return null;
   }
-  return null;
-}
-
-
 
   // Helper methods to access specific data from the response
   List<Map<String, dynamic>>? get tickets {

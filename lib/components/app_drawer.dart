@@ -93,7 +93,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   Get.to(() => MegaPage());
                 },
                 leading: Image.asset('assets/images/trophy.png', height: 30.h),
-                title: AppText('Mega-3', fontSize: 14.sp),
+                title: AppText('Mega-4', fontSize: 14.sp),
               ),
             ),
             // Thrill-3 Button!

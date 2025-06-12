@@ -14,12 +14,11 @@ class RoyalPage extends StatelessWidget {
   RoyalPage({super.key});
 
   final searchController = TextEditingController();
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: AppDrawer(),
-      appBar: AppBar(title: AppText('Royal 6 Game', fontSize: 16.sp, fontWeight: FontWeight.w600)),
+     appBar: AppBar(title: AppText('Royal-6', fontSize: 16.sp, fontWeight: FontWeight.bold)),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: 14.w),
         child: Consumer<TicketServices>(

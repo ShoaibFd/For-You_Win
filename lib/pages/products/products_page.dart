@@ -23,23 +23,30 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   void initState() {
     super.initState();
-    // Solution 1: Only fetch if data doesn't exist
-    Future.microtask(() {
+    _initialized = false;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initializeData();
+  }
+
+  void _initializeData() {
+    if (!_initialized) {
       final productsService = Provider.of<ProductsServices>(context, listen: false);
-      if (productsService.productsData?.data == null || productsService.productsData!.data.isEmpty) {
+      if (productsService.productsData!.data.isEmpty) {
         productsService.fetchProducts();
       }
-    });
+      _initialized = true;
+    }
   }
 
   void _initializeQuantities(QuantityProvider quantitiesProvider, int length) {
-    if (!_initialized && quantitiesProvider.quantities.length != length) {
+    if (quantitiesProvider.quantities.length != length) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           quantitiesProvider.initialize(length);
-          setState(() {
-            _initialized = true;
-          });
         }
       });
     }
@@ -52,29 +59,40 @@ class _ProductsPageState extends State<ProductsPage> {
       appBar: AppBar(title: AppText('All Products', fontSize: 16.sp, fontWeight: FontWeight.w600)),
       body: Consumer2<ProductsServices, QuantityProvider>(
         builder: (context, products, quantitiesProvider, _) {
-          if (products.isLoading) {
+          // Show loading only when actually fetching data
+          if (products.isLoading && (products.productsData?.data == null || products.productsData!.data.isEmpty)) {
             return Center(child: AppLoading());
           }
 
           final productList = products.productsData?.data;
           if (productList == null || productList.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.info_outline, color: Colors.red, size: 26.sp),
-                  SizedBox(height: 4.h),
-                  AppText('No Products!!', color: Colors.red),
-                ],
-              ),
-            );
-          }
-
-          if (quantitiesProvider.quantities.length != productList.length) {
-            _initializeQuantities(quantitiesProvider, productList.length);
-            if (!_initialized) {
+            // If not loading and no data, show the error message
+            if (!products.isLoading) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.red, size: 26.sp),
+                    SizedBox(height: 4.h),
+                    AppText('No Products!!', color: Colors.red),
+                    SizedBox(height: 16.h),
+                    ElevatedButton(
+                      onPressed: () {
+                        products.fetchProducts();
+                      },
+                      child: AppText('Retry', fontSize: 14.sp),
+                    ),
+                  ],
+                ),
+              );
+            } else {
               return Center(child: AppLoading());
             }
+          }
+
+          // Initialize quantities when we have products
+          if (quantitiesProvider.quantities.length != productList.length) {
+            _initializeQuantities(quantitiesProvider, productList.length);
           }
 
           return Padding(
@@ -85,9 +103,9 @@ class _ProductsPageState extends State<ProductsPage> {
               itemBuilder: (context, index) {
                 final product = productList[index];
 
-                if (index >= quantitiesProvider.quantities.length) {
-                  return const SizedBox.shrink();
-                }
+                // Safely handle quantity access
+                final currentQuantity =
+                    index < quantitiesProvider.quantities.length ? quantitiesProvider.quantities[index] : 1;
 
                 return Container(
                   width: double.maxFinite,
@@ -143,10 +161,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                           },
                                         ),
                                         AppText(
-                                          (index < quantitiesProvider.quantities.length
-                                                  ? quantitiesProvider.quantities[index]
-                                                  : 1)
-                                              .toString(),
+                                          currentQuantity.toString(),
                                           fontSize: 14.sp,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -165,13 +180,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                   // Buy Now Button!!
                                   GestureDetector(
                                     onTap: () {
-                                      final quantity =
-                                          index < quantitiesProvider.quantities.length
-                                              ? quantitiesProvider.quantities[index]
-                                              : 1;
                                       final productId = int.tryParse(product.id.toString()) ?? 0;
-
-                                      Get.to(() => PurchasePage(productId: productId, quantity: quantity));
+                                      Get.to(() => PurchasePage(productId: productId, quantity: currentQuantity));
                                     },
                                     child: Container(
                                       height: 34.h,

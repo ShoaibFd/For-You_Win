@@ -58,7 +58,7 @@ class AuthServices with ChangeNotifier {
         Get.offAll(() => BottomNavigationBarPage());
         AppSnackbar.showSuccessSnackbar(responseData['message']);
       } else {
-        AppSnackbar.showErrorSnackbar('Something went wrong! Try again.');
+        AppSnackbar.showInfoSnackbar(responseData['message']);
       }
     } catch (e) {
       log('Login Error: $e');

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
 import 'package:for_u_win/data/models/tickets/check_ticket_response.dart';
-import 'package:for_u_win/data/services/tickets/ticket_services.dart';
 import 'package:for_u_win/pages/tickets/click_page.dart';
 import 'package:for_u_win/pages/tickets/foryou_page.dart';
 import 'package:for_u_win/pages/tickets/info_page.dart';
@@ -15,7 +14,6 @@ import 'package:for_u_win/pages/tickets/royal_page.dart';
 import 'package:for_u_win/pages/tickets/thrill_page.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:provider/provider.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -27,49 +25,60 @@ class ScannerPage extends StatefulWidget {
 class _ScannerPageState extends State<ScannerPage> {
   bool _isScanned = false;
   final MobileScannerController _controller = MobileScannerController();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    setState(() {
+      _isScanned = false;
+    });
+  }
 
   Future<void> _handleQRCode(String code) async {
     log("Scanned code: $code");
-    setState(() => _isScanned = true);
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _isScanned = false);
-    });
 
-    final ticketProvider = Provider.of<TicketServices>(context, listen: false);
+    // Prevent duplicate scanning
+    if (_isScanned) return;
+    setState(() => _isScanned = true);
 
     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: AppLoading()));
 
     try {
+      String? productName;
       String? ticketId;
 
-      if (code.startsWith("ticket:")) {
-        ticketId = code.substring(7);
-      } else if (code.contains('/check-ticket/')) {
-        final uri = Uri.parse(code);
-        final segments = uri.pathSegments;
-        ticketId = segments.isNotEmpty ? segments.last : null;
+      // Handle the new format: Order:11504|Product:Click-2|Date:11 Jun 2025
+      if (code.contains('Product:')) {
+        final parts = code.split('|');
+        for (var part in parts) {
+          if (part.startsWith('Product:')) {
+            productName = part.split(':')[1].trim();
+          } else if (part.startsWith('Order:')) {
+            ticketId = part.split(':')[1].trim();
+          }
+        }
       }
 
-      if (ticketId != null && ticketId.isNotEmpty) {
-        final response = await ticketProvider.checkTicket(ticketId);
-        Get.back();
+      if (productName != null && productName.isNotEmpty) {
+        Get.back(); // Close loading dialog
 
-        if (response != null && response.status == "success") {
-          Get.to(
-            () => _getPageBasedOnProductName(response.data?.productName),
-            arguments: {'ticketId': ticketId, 'ticketData': response.data},
-          );
-        } else {
-          _navigateBasedOnProductName(ticketId, response);
-        }
+        // Navigate directly to the correct page
+        Get.to(
+          () => _getPageBasedOnProductName(productName),
+          arguments: {'ticket_id': ticketId ?? '', 'has_winners': false, 'product_name': productName},
+        );
+
+        // Prevent re-scanning until back
+        setState(() => _isScanned = true);
       } else {
         Get.back();
-        AppSnackbar.showInfoSnackbar('Could not extract ticket ID from the QR code.');
+        AppSnackbar.showInfoSnackbar('Invalid QR code format.');
+        setState(() => _isScanned = false);
       }
     } catch (e) {
       Get.back();
       log("Error handling QR code: $e");
-      AppSnackbar.showErrorSnackbar('Something went wrong while processing the ticket.');
+      AppSnackbar.showErrorSnackbar('Something went wrong while processing the QR code.');
+      setState(() => _isScanned = false);
     }
   }
 

@@ -1,6 +1,7 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:math';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -11,6 +12,7 @@ import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/components/primary_button.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
+import 'package:for_u_win/pages/products/components/checkbox.dart';
 import 'package:for_u_win/pages/products/model/purchase_ticket_response.dart';
 import 'package:provider/provider.dart';
 
@@ -30,8 +32,8 @@ class _PurchasePageState extends State<PurchasePage> {
   List<List<FocusNode>> allTicketFocusNodes = [];
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     final provider = context.read<ProductsServices>();
     provider.fetchProductsDetails(widget.productId ?? 0);
     _initializeControllers();
@@ -186,13 +188,24 @@ class _PurchasePageState extends State<PurchasePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  AppText("Choose Your Numbers", fontSize: 18.sp, fontWeight: FontWeight.bold),
-                  AppText("Quantity: ${widget.quantity}", fontSize: 16.sp, fontWeight: FontWeight.w500),
-                  Divider(thickness: 2, height: 24.h),
-                  AppText("Total Amount: AED ${totalAmount.toStringAsFixed(2)}", fontSize: 16.sp),
-                  AppText(
-                    "VAT (${vatValue.toStringAsFixed(0)}%): AED ${vatAmount.toStringAsFixed(4)}",
-                    fontSize: 16.sp,
+                  Container(
+                    padding: EdgeInsets.all(10.r),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Column(
+                      children: [
+                        AppText("Choose Your Numbers", fontSize: 16.sp, fontWeight: FontWeight.bold),
+                        AppText("Quantity: ${widget.quantity}", fontSize: 16.sp, fontWeight: FontWeight.w500),
+                        Divider(thickness: 2, height: 24.h),
+                        AppText("Total Amount: AED ${totalAmount.toStringAsFixed(2)}", fontSize: 16.sp),
+                        AppText(
+                          "VAT (${vatValue.toStringAsFixed(0)}%): AED ${vatAmount.toStringAsFixed(4)}",
+                          fontSize: 16.sp,
+                        ),
+                      ],
+                    ),
                   ),
                   SizedBox(height: 20.h),
 
@@ -209,10 +222,17 @@ class _PurchasePageState extends State<PurchasePage> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                AppText("Ticket #${ticketIndex + 1}", color: Colors.red, fontWeight: FontWeight.bold),
-                                TextButton(
-                                  onPressed: () => _quickPick(ticketIndex),
-                                  child: AppText("Quick Pick", color: Colors.red, fontWeight: FontWeight.bold),
+                                AppText("Ticket #${ticketIndex + 1}", color: whiteColor, fontWeight: FontWeight.bold),
+                                GestureDetector(
+                                  onTap: () => _quickPick(ticketIndex),
+                                  child: Container(
+                                    padding: EdgeInsets.all(10.r),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(6.r),
+                                    ),
+                                    child: Center(child: AppText('Quick Pick', color: whiteColor)),
+                                  ),
                                 ),
                               ],
                             ),
@@ -309,25 +329,44 @@ class _PurchasePageState extends State<PurchasePage> {
                           SizedBox(height: 16.h),
                           numberOfField == 6
                               ? SizedBox()
-                              : Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  _checkbox('Straight', allTicketGameTypes[ticketIndex]['Straight'] ?? false, (val) {
-                                    setState(() {
-                                      allTicketGameTypes[ticketIndex]['Straight'] = val ?? false;
-                                    });
-                                  }),
-                                  _checkbox('Rumble', allTicketGameTypes[ticketIndex]['Rumble'] ?? false, (val) {
-                                    setState(() {
-                                      allTicketGameTypes[ticketIndex]['Rumble'] = val ?? false;
-                                    });
-                                  }),
-                                  _checkbox('Chance', allTicketGameTypes[ticketIndex]['Chance'] ?? false, (val) {
-                                    setState(() {
-                                      allTicketGameTypes[ticketIndex]['Chance'] = val ?? false;
-                                    });
-                                  }),
-                                ],
+                              : Container(
+                                padding: EdgeInsets.all(4.r),
+                                decoration: BoxDecoration(
+                                  color: whiteColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8.r),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    CustomCheckbox(
+                                      label: 'Straight',
+                                      value: allTicketGameTypes[ticketIndex]['Straight'] ?? false,
+                                      onChanged: (val) {
+                                        setState(() {
+                                          allTicketGameTypes[ticketIndex]['Straight'] = val ?? false;
+                                        });
+                                      },
+                                    ),
+                                    CustomCheckbox(
+                                      label: 'Rumble',
+                                      value: allTicketGameTypes[ticketIndex]['Rumble'] ?? false,
+                                      onChanged: (val) {
+                                        setState(() {
+                                          allTicketGameTypes[ticketIndex]['Rumble'] = val ?? false;
+                                        });
+                                      },
+                                    ),
+                                    CustomCheckbox(
+                                      label: 'Chance',
+                                      value: allTicketGameTypes[ticketIndex]['Chance'] ?? false,
+                                      onChanged: (val) {
+                                        setState(() {
+                                          allTicketGameTypes[ticketIndex]['Chance'] = val ?? false;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
                         ],
                       ),
@@ -401,7 +440,6 @@ class _PurchasePageState extends State<PurchasePage> {
                               );
 
                               await product.fetchInvoice(orderNumber, numbers);
-                              // PdfService.genera
                             }
                           }
                         },
@@ -416,9 +454,5 @@ class _PurchasePageState extends State<PurchasePage> {
         ),
       ),
     );
-  }
-
-  Widget _checkbox(String label, bool value, ValueChanged<bool?> onChanged) {
-    return Row(children: [CupertinoCheckbox(value: value, onChanged: onChanged), SizedBox(width: 8.w), AppText(label)]);
   }
 }
