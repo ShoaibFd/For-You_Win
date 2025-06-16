@@ -93,9 +93,9 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
           width: 70.w,
           child: FloatingActionButton(
             onPressed: () => _onItemTapped(1),
-            backgroundColor: secondaryColor,
+            backgroundColor: blackColor,
             elevation: 6,
-            shape: const CircleBorder(side: BorderSide(color: primaryColor, width: 2)),
+            shape: const CircleBorder(side: BorderSide(color: primaryColor, width: 4)),
             child: Image.asset('assets/images/scanner.png', height: 30.h, width: 30.w, color: primaryColor),
           ),
         ),

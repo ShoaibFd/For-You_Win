@@ -35,7 +35,7 @@ class _ProductsPageState extends State<ProductsPage> {
   void _initializeData() {
     if (!_initialized) {
       final productsService = Provider.of<ProductsServices>(context, listen: false);
-      if (productsService.productsData!.data.isEmpty) {
+      if (productsService.productsData?.data == null) {
         productsService.fetchProducts();
       }
       _initialized = true;
@@ -55,13 +55,14 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: secondaryColor,
       drawer: const AppDrawer(),
       appBar: AppBar(title: AppText('All Products', fontSize: 16.sp, fontWeight: FontWeight.w600)),
       body: Consumer2<ProductsServices, QuantityProvider>(
         builder: (context, products, quantitiesProvider, _) {
           // Show loading only when actually fetching data
           if (products.isLoading && (products.productsData?.data == null || products.productsData!.data.isEmpty)) {
-            return Center(child: AppLoading());
+            return Center(child: AppLoading(color: primaryColor));
           }
 
           final productList = products.productsData?.data;

@@ -33,6 +33,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: secondaryColor,
       // Custom Drawer
       drawer: AppDrawer(),
       // AppBar
@@ -105,7 +106,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
                     return GestureDetector(
                       onTap: () {
-                        product.fetchHistory(products.name ?? "");
+                        product.fetchHistory(products.id.toString());
+                        debugPrint('Product Id :${products.id}');
                         Get.to(() => ProductDetailPage(pageName: products.name ?? ""));
                       },
                       child: Padding(

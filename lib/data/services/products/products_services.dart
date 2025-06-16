@@ -145,7 +145,7 @@ class ProductsServices with ChangeNotifier {
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
-      log('Status Code: ${response.statusCode}');
+      log('Response in fetch Invoice: ${response.statusCode}, ${response.body}');
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -154,6 +154,7 @@ class ProductsServices with ChangeNotifier {
         Get.to(
           () => GenerateInvoicePage(
             numbers: numbers,
+            prdouctImage: invoice.productImage,
             img: invoice.productImage,
             orderNumber: '$orderNumber',
             productName: invoice.productName,

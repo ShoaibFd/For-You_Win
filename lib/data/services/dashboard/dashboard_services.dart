@@ -21,12 +21,14 @@ class DashboardServices with ChangeNotifier {
   Future<void> fetchDashboardData() async {
     try {
       _isLoading = true;
-      Future.microtask(() => notifyListeners()); 
+      Future.microtask(() => notifyListeners());
       final token = await _sharedPrefs.getToken();
       final response = await http.get(
         Uri.parse(dashboardUrl),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
+
+      log('Response in product detail: ${response.statusCode} and ${response.body}');
       // Successful Response!!
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -39,26 +41,24 @@ class DashboardServices with ChangeNotifier {
     }
 
     _isLoading = false;
-     Future.microtask(() => notifyListeners()); 
+    Future.microtask(() => notifyListeners());
   }
 
-  //
+  // Fetch History Function!!
   Future<void> fetchHistory(String pageName) async {
-   
-
     try {
-       _isLoading = true;
-     Future.microtask(() => notifyListeners()); 
+      _isLoading = true;
+      Future.microtask(() => notifyListeners());
       final token = await _sharedPrefs.getToken();
       final response = await http.get(
-        Uri.parse('https://clone.foryouwin.com/api/product-tickets/$pageName'),
+        Uri.parse('$ticketHistoryUrl/$pageName'),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
       // Successful Response!!
+      log('Ticket History Response: ${response.statusCode} and ${response.body}');
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         _ticketHistoryData = TicketHistoryResponse.fromJson(jsonData);
-        log('Ticket History Response: ${response.statusCode}');
       } else {
         log("Ticket History fetch failed: ${response.statusCode}");
       }
@@ -67,6 +67,6 @@ class DashboardServices with ChangeNotifier {
     }
 
     _isLoading = false;
-     Future.microtask(() => notifyListeners()); 
+    Future.microtask(() => notifyListeners());
   }
 }

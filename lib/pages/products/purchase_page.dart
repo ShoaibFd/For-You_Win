@@ -25,21 +25,59 @@ class PurchasePage extends StatefulWidget {
   State<PurchasePage> createState() => _PurchasePageState();
 }
 
-class _PurchasePageState extends State<PurchasePage> {
+class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClientMixin {
   // Controllers
   List<List<TextEditingController>> allTicketControllers = [];
   List<Map<String, bool>> allTicketGameTypes = [];
   List<List<FocusNode>> allTicketFocusNodes = [];
 
+  // Add flags to prevent multiple initialization
+  bool _isInitialized = false;
+  bool _dataFetched = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeOnce();
+  }
+
+  void _initializeOnce() {
+    if (!_isInitialized) {
+      _initializeControllers();
+      _isInitialized = true;
+
+      // Use addPostFrameCallback to ensure context is ready
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_dataFetched) {
+          _fetchData();
+        }
+      });
+    }
+  }
+
+  void _fetchData() {
+    if (!_dataFetched) {
+      final provider = context.read<ProductsServices>();
+      provider.fetchProductsDetails(widget.productId ?? 0);
+      _dataFetched = true;
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final provider = context.read<ProductsServices>();
-    provider.fetchProductsDetails(widget.productId ?? 0);
-    _initializeControllers();
+    // Only initialize if not already done
+    if (!_isInitialized) {
+      _initializeOnce();
+    }
   }
 
   void _initializeControllers() {
+    if (allTicketControllers.isNotEmpty) return; // Prevent re-initialization
+
     allTicketControllers.clear();
     allTicketGameTypes.clear();
     allTicketFocusNodes.clear();
@@ -153,6 +191,8 @@ class _PurchasePageState extends State<PurchasePage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(title: AppText('Buy Now', fontSize: 16.sp, fontWeight: FontWeight.w600)),
@@ -160,7 +200,8 @@ class _PurchasePageState extends State<PurchasePage> {
         padding: EdgeInsets.all(16.w),
         child: Consumer<ProductsServices>(
           builder: (context, product, child) {
-            if (product.isLoading) {
+            // Show loading only on initial load
+            if (product.isLoading && !_dataFetched) {
               return const Center(child: AppLoading());
             }
 
@@ -175,13 +216,18 @@ class _PurchasePageState extends State<PurchasePage> {
             final double totalAmount = calculateTotalPrice(priceValue, vatValue, numberOfField);
             final double vatAmount = calculateTotalVAT(priceValue, vatValue, numberOfField);
 
-            if (data == null) {
+            if (data == null && _dataFetched) {
               return const Center(child: AppText('Nothing found!!'));
             }
 
             // Ensure controllers are initialized when data is loaded
-            if (allTicketControllers.isEmpty) {
+            if (allTicketControllers.isEmpty && data != null) {
               _initializeControllers();
+            }
+
+            // Show loading if data is still null but we haven't fetched yet
+            if (data == null) {
+              return const Center(child: AppLoading());
             }
 
             return SingleChildScrollView(
@@ -244,7 +290,7 @@ class _PurchasePageState extends State<PurchasePage> {
                             children: List.generate(numberOfField, (fieldIndex) {
                               return SizedBox(
                                 width: 45.w,
-                                height: 45.w,
+                                height: 50.w,
                                 child: TextFormField(
                                   controller: allTicketControllers[ticketIndex][fieldIndex],
                                   focusNode: allTicketFocusNodes[ticketIndex][fieldIndex],
@@ -287,7 +333,7 @@ class _PurchasePageState extends State<PurchasePage> {
                                     if (numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)) {
                                       setState(() {});
                                     } else {
-                                      setState(() {}); // Update pricing
+                                      setState(() {});
                                     }
                                   },
                                   decoration: InputDecoration(
@@ -316,7 +362,7 @@ class _PurchasePageState extends State<PurchasePage> {
                                               : const BorderSide(color: Colors.blue, width: 2),
                                     ),
                                   ),
-                                  style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold),
+                                  style: TextStyle(fontSize: 17.sp),
                                 ),
                               );
                             }),
@@ -381,25 +427,22 @@ class _PurchasePageState extends State<PurchasePage> {
                         isLoading: product.isLoading,
                         onTap: () async {
                           List<Ticket> allTickets = [];
-                          bool isValid = true;
 
-                          // Validate and collect data for all tickets
                           for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
                             int selectedCount = getSelectedCheckboxCount(ticketIndex);
 
-                            // Check validation for each ticket
                             if (numberOfField != 6 && selectedCount == 0) {
                               AppSnackbar.showInfoSnackbar(
                                 'Please select at least one checkbox for Ticket #${ticketIndex + 1}',
                               );
-                              isValid = false;
-                              break;
-                            } else if (numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)) {
+                              return;
+                            }
+
+                            if (numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)) {
                               AppSnackbar.showInfoSnackbar(
                                 'Please ensure all numbers are unique for Ticket #${ticketIndex + 1}',
                               );
-                              isValid = false;
-                              break;
+                              return;
                             }
 
                             // Collect numbers
@@ -418,30 +461,25 @@ class _PurchasePageState extends State<PurchasePage> {
                               AppSnackbar.showInfoSnackbar(
                                 'Please fill all number fields for Ticket #${ticketIndex + 1}',
                               );
-                              isValid = false;
-                              break;
+                              return;
                             }
 
                             // Collect game types
                             List<String> selectedGameTypes = [];
-                            if (numberOfField == 6) {
-                              selectedGameTypes = [];
-                            } else {
+                            if (numberOfField != 6) {
                               allTicketGameTypes[ticketIndex].forEach((gameType, isSelected) {
                                 if (isSelected) selectedGameTypes.add(gameType);
                               });
                             }
 
                             allTickets.add(Ticket(numbers: numbers, gameTypes: selectedGameTypes));
-                            if (isValid) {
-                              // Make the purchase with all tickets
-                              final orderNumber = await product.purchaseTicket(
-                                PurchaseTicketModel(productId: widget.productId ?? 0, tickets: allTickets),
-                              );
-
-                              await product.fetchInvoice(orderNumber, numbers);
-                            }
                           }
+
+                          final orderNumber = await product.purchaseTicket(
+                            PurchaseTicketModel(productId: widget.productId ?? 0, tickets: allTickets),
+                          );
+
+                          await product.fetchInvoice(orderNumber, [allTickets.last.numbers]);
                         },
                         title: 'Confirm Purchase',
                       );

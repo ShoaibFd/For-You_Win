@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -25,10 +27,28 @@ class ProductDetailPage extends StatefulWidget {
 class _ProductDetailPageState extends State<ProductDetailPage> {
   @override
   void initState() {
-    final provider = context.read<DashboardServices>();
-    final name = provider.dashboardData?.data?.products?.data.last.name;
-    Provider.of<DashboardServices>(context).fetchHistory(name ?? "");
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<DashboardServices>();
+      final name = provider.dashboardData?.data?.products?.data.last.name;
+      if (name != null) {
+        provider.fetchHistory(name);
+      } else {
+        AppSnackbar.showErrorSnackbar('Product name not available');
+      }
+    });
+  }
+
+  // To Check If Tickets Are Available
+  bool _hasTicketsData(DashboardServices product) {
+    return product.ticketHistoryData != null && product.ticketHistoryData!.tickets.isNotEmpty;
+  }
+
+  // To Convert Values to String!!
+  String _safeToString(dynamic value) {
+    if (value == null) return 'N/A';
+    if (value.toString().isEmpty) return 'N/A';
+    return value.toString();
   }
 
   @override
@@ -43,79 +63,115 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             if (product.isLoading) {
               return const Center(child: AppLoading());
             }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppText('Your Tickets for ${widget.pageName}', fontWeight: FontWeight.bold, fontSize: 18),
+                AppText('Your Tickets for ${widget.pageName}', fontSize: 18),
                 SizedBox(height: 10.h),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: GestureDetector(
-                    onTap: () => _printTicketDetails(context, product),
-                    child: Container(
-                      height: 30.h,
-                      width: 70.w,
-                      decoration: BoxDecoration(color: secondaryColor, borderRadius: BorderRadius.circular(20.r)),
-                      child: Center(child: AppText('Print', fontSize: 15.sp)),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 10.h),
-                Builder(
-                  builder: (context) {
-                    final tickets = product.ticketHistoryData?.tickets;
-                    if (tickets == null || tickets.isEmpty) {
-                      return const Center(child: AppText('No ticket data found'));
-                    }
-                    final List<MapEntry<String, String>> rows = [
-                      MapEntry('Order Number', tickets.first.orderNumber.toString()),
-                      MapEntry('Order Date', tickets.first.orderDate.toString()),
-                      MapEntry('Draw Date', tickets.first.drawDate.toString()),
-                      MapEntry('Status', tickets.first.orderStatus.toString()),
-                      MapEntry('Prize', tickets.first.raffleDrawPrize.toString()),
-                      MapEntry('Numbers', tickets.first.numbers.toString()),
-                      MapEntry('Straight', tickets.first.straight.toString()),
-                      MapEntry('Rumble', tickets.first.rumble.toString()),
-                      MapEntry('Chance', tickets.first.chance.toString()),
-                      MapEntry('Is Announced', tickets.first.isAnnounced.toString()),
-                    ];
-                    return Table(
-                      border: TableBorder.all(
-                        color: secondaryColor,
-                        width: 1.5,
-                        borderRadius: BorderRadius.circular(8.r),
+
+                // Show print button only if data is available
+                _hasTicketsData(product)
+                    ? Align(
+                      alignment: Alignment.bottomRight,
+                      child: GestureDetector(
+                        onTap: () => _printTicketDetails(context, product),
+                        child: Container(
+                          height: 30.h,
+                          width: 70.w,
+                          decoration: BoxDecoration(color: secondaryColor, borderRadius: BorderRadius.circular(20.r)),
+                          child: Center(child: AppText('Print', fontSize: 15.sp)),
+                        ),
                       ),
-                      columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1)},
-                      children: List.generate(rows.length ~/ 2, (index) {
-                        return TableRow(
-                          children: [
-                            tableCell('${rows[index * 2].key}\n${rows[index * 2].value}'),
-                            tableCell('${rows[index * 2 + 1].key}\n${rows[index * 2 + 1].value}'),
-                          ],
-                        );
-                      }),
-                    );
-                  },
+                    )
+                    : SizedBox.shrink(),
+
+                SizedBox(height: 10.h),
+
+                // Main content area
+                Expanded(
+                  child:
+                      !_hasTicketsData(product)
+                          ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.info_outline, color: Colors.redAccent.withOpacity(0.7), size: 40.sp),
+                                SizedBox(height: 16.h),
+                                AppText(
+                                  'Oops! No Data Found',
+                                  color: Colors.redAccent.withOpacity(0.8),
+                                  fontSize: 15.sp,
+                                ),
+                                SizedBox(height: 8.h),
+                                AppText(
+                                  'Please check back later or contact support if this issue persists.',
+                                  color: Colors.grey,
+                                  fontSize: 13.sp,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                          : SingleChildScrollView(
+                            child: Builder(
+                              builder: (context) {
+                                final ticket = product.ticketHistoryData!.tickets.first;
+
+                                final List<MapEntry<String, String>> rows = [
+                                  MapEntry('Order Number', _safeToString(ticket.orderNumber)),
+                                  MapEntry('Order Date', _safeToString(ticket.orderDate)),
+                                  MapEntry('Draw Date', _safeToString(ticket.drawDate)),
+                                  MapEntry('Status', _safeToString(ticket.orderStatus)),
+                                  MapEntry('Prize', _safeToString(ticket.raffleDrawPrize)),
+                                  MapEntry('Numbers', _safeToString(ticket.numbers)),
+                                  MapEntry('Straight', _safeToString(ticket.straight)),
+                                  MapEntry('Rumble', _safeToString(ticket.rumble)),
+                                  MapEntry('Chance', _safeToString(ticket.chance)),
+                                  MapEntry('Is Announced', _safeToString(ticket.isAnnounced)),
+                                ];
+
+                                return Table(
+                                  border: TableBorder.all(
+                                    color: secondaryColor,
+                                    width: 1.5,
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1)},
+                                  children: List.generate(rows.length ~/ 2, (index) {
+                                    return TableRow(
+                                      children: [
+                                        tableCell('${rows[index * 2].key}\n${rows[index * 2].value}'),
+                                        tableCell('${rows[index * 2 + 1].key}\n${rows[index * 2 + 1].value}'),
+                                      ],
+                                    );
+                                  }),
+                                );
+                              },
+                            ),
+                          ),
                 ),
+
                 SizedBox(height: 16.h),
-                AppText('Showing Results 1 to 1 of 1 Entries'),
+
+                // Results info - only show if data is available
+                _hasTicketsData(product)
+                    ? AppText(
+                      'Showing Results 1 to ${product.ticketHistoryData!.tickets.length} of ${product.ticketHistoryData!.tickets.length} Entries',
+                    )
+                    : SizedBox.shrink(),
+
                 SizedBox(height: 16.h),
+
+                // Back button
                 Row(
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () {
-                        Get.back();
-                      },
+                      onPressed: () => Get.back(),
                       icon: const Icon(Icons.keyboard_double_arrow_left_outlined),
                       label: AppText('Back to Products'),
                       style: ElevatedButton.styleFrom(backgroundColor: secondaryColor, foregroundColor: Colors.black),
                     ),
-                    // const Spacer(),
-                    // AppText('Previous'),
-                    // SizedBox(width: 8.w),
-                    // CircleAvatar(radius: 14.r, backgroundColor: secondaryColor, child: AppText('1')),
-                    // SizedBox(width: 8.w),
-                    // AppText('Next'),
                   ],
                 ),
               ],
@@ -150,19 +206,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   // Print functionality
   Future<void> _printTicketDetails(BuildContext context, DashboardServices product) async {
-    final tickets = product.ticketHistoryData?.tickets;
-
-    if (tickets == null || tickets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No ticket data to print')));
+    if (!_hasTicketsData(product)) {
+      AppSnackbar.showErrorSnackbar('No ticket data to print');
       return;
     }
 
-    final ticket = tickets.first;
+    final ticket = product.ticketHistoryData!.tickets.first;
 
     try {
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => _generatePdf(ticket),
-        name: 'Ticket_${ticket.orderNumber}',
+        name: 'Ticket_${_safeToString(ticket.orderNumber)}',
       );
     } catch (e) {
       AppSnackbar.showErrorSnackbar('Error printing: $e');
@@ -207,22 +261,22 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 border: pw.TableBorder.all(color: PdfColors.grey600, width: 1),
                 columnWidths: const {0: pw.FlexColumnWidth(1), 1: pw.FlexColumnWidth(2)},
                 children: [
-                  tableRow('Order Number', ticket.orderNumber.toString()),
-                  tableRow('Order Date', ticket.orderDate.toString()),
-                  tableRow('Draw Date', ticket.drawDate.toString()),
-                  tableRow('Status', ticket.orderStatus.toString()),
-                  tableRow('Prize', ticket.raffleDrawPrize.toString()),
-                  tableRow('Numbers', ticket.numbers.toString()),
-                  tableRow('Straight', ticket.straight.toString()),
-                  tableRow('Rumble', ticket.rumble.toString()),
-                  tableRow('Chance', ticket.chance.toString()),
-                  tableRow('Is Announced', ticket.isAnnounced.toString()),
+                  tableRow('Order Number', _safeToString(ticket.orderNumber)),
+                  tableRow('Order Date', _safeToString(ticket.orderDate)),
+                  tableRow('Draw Date', _safeToString(ticket.drawDate)),
+                  tableRow('Status', _safeToString(ticket.orderStatus)),
+                  tableRow('Prize', _safeToString(ticket.raffleDrawPrize)),
+                  tableRow('Numbers', _safeToString(ticket.numbers)),
+                  tableRow('Straight', _safeToString(ticket.straight)),
+                  tableRow('Rumble', _safeToString(ticket.rumble)),
+                  tableRow('Chance', _safeToString(ticket.chance)),
+                  tableRow('Is Announced', _safeToString(ticket.isAnnounced)),
                 ],
               ),
 
               pw.SizedBox(height: 30),
 
-              // Message!!
+              // Footer Message
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(15),
@@ -245,7 +299,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return pdf.save();
   }
 
-  // Table Row Component!!
+  // Table Row Component for PDF
   pw.TableRow tableRow(String label, String value) {
     return pw.TableRow(
       children: [

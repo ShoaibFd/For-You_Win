@@ -45,7 +45,7 @@ class LoginPage extends StatelessWidget {
                         Image.asset('assets/images/logo.png', height: 80.h),
                         SizedBox(width: 10.w),
                         Expanded(
-                          child: AppText('Shopping & Winning App', fontSize: 18.sp, fontWeight: FontWeight.bold),
+                          child: AppText('Buy our tickets & get rewards', fontSize: 18.sp, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),

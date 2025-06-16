@@ -5,6 +5,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
+import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/data/models/tickets/check_ticket_response.dart';
 import 'package:for_u_win/pages/tickets/click_page.dart';
 import 'package:for_u_win/pages/tickets/foryou_page.dart';
@@ -22,9 +23,25 @@ class ScannerPage extends StatefulWidget {
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> {
+class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   bool _isScanned = false;
+  bool _isScannerReady = false; // Add this flag
   final MobileScannerController _controller = MobileScannerController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Add delay before enabling scanner
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() {
+          _isScannerReady = true;
+        });
+      }
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -33,11 +50,32 @@ class _ScannerPageState extends State<ScannerPage> {
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reset scanner when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      setState(() {
+        _isScanned = false;
+        _isScannerReady = false;
+      });
+      // Re-enable scanner after a short delay
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          setState(() {
+            _isScannerReady = true;
+          });
+        }
+      });
+    }
+  }
+
   Future<void> _handleQRCode(String code) async {
     log("Scanned code: $code");
 
-    // Prevent duplicate scanning
-    if (_isScanned) return;
+    // Prevent duplicate scanning and ensure scanner is ready
+    if (_isScanned || !_isScannerReady) return;
+
     setState(() => _isScanned = true);
 
     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: AppLoading()));
@@ -62,24 +100,54 @@ class _ScannerPageState extends State<ScannerPage> {
         Get.back(); // Close loading dialog
 
         // Navigate directly to the correct page
-        Get.to(
+        final result = await Get.to(
           () => _getPageBasedOnProductName(productName),
           arguments: {'ticket_id': ticketId ?? '', 'has_winners': false, 'product_name': productName},
         );
 
-        // Prevent re-scanning until back
-        setState(() => _isScanned = true);
+        // Reset scanner state when returning from navigation
+        if (mounted) {
+          setState(() {
+            _isScanned = false;
+            _isScannerReady = false;
+          });
+
+          // Re-enable scanner after delay
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            if (mounted) {
+              setState(() {
+                _isScannerReady = true;
+              });
+            }
+          });
+        }
       } else {
         Get.back();
         AppSnackbar.showInfoSnackbar('Invalid QR code format.');
-        setState(() => _isScanned = false);
+        _resetScanner();
       }
     } catch (e) {
       Get.back();
       log("Error handling QR code: $e");
       AppSnackbar.showErrorSnackbar('Something went wrong while processing the QR code.');
-      setState(() => _isScanned = false);
+      _resetScanner();
     }
+  }
+
+  void _resetScanner() {
+    setState(() {
+      _isScanned = false;
+      _isScannerReady = false;
+    });
+
+    // Re-enable scanner after delay
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() {
+          _isScannerReady = true;
+        });
+      }
+    });
   }
 
   void _navigateBasedOnProductName(String ticketId, CheckTicketResponse? response) {
@@ -160,6 +228,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -167,6 +236,7 @@ class _ScannerPageState extends State<ScannerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: secondaryColor,
       appBar: AppBar(
         actions: [
           IconButton(icon: const Icon(Icons.flash_on, color: Colors.white), onPressed: () => _controller.toggleTorch()),
@@ -181,7 +251,8 @@ class _ScannerPageState extends State<ScannerPage> {
           MobileScanner(
             controller: _controller,
             onDetect: (capture) {
-              if (!_isScanned) {
+              // Only process QR codes if scanner is ready and not already scanned
+              if (!_isScanned && _isScannerReady) {
                 final code = capture.barcodes.first.rawValue;
                 if (code != null) {
                   _handleQRCode(code);
@@ -217,12 +288,13 @@ class _ScannerPageState extends State<ScannerPage> {
             child: Padding(
               padding: const EdgeInsets.only(top: 60),
               child: Text(
-                'Position QR code within the frame',
+                _isScannerReady ? 'Position QR code within the frame' : 'Preparing scanner...',
                 style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
           ),
-          if (!_isScanned) Center(child: SizedBox(width: 250, height: 250, child: _ScanningAnimation())),
+          if (_isScannerReady && !_isScanned)
+            Center(child: SizedBox(width: 250, height: 250, child: _ScanningAnimation())),
         ],
       ),
     );
