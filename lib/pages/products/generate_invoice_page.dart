@@ -24,7 +24,7 @@ class GenerateInvoicePage extends StatefulWidget {
   final String address;
   final String drawDate;
   final String prdouctImage;
-  final List<dynamic> numbers;
+  final List<dynamic> numbers; // This now contains all tickets numbers
 
   const GenerateInvoicePage({
     super.key,
@@ -100,7 +100,42 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> {
     );
   }
 
-  pw.Widget buildNumbersGrid(List<dynamic> numbers) {
+  // Updated method to handle multiple tickets
+  pw.Widget buildAllTicketsGrid(List<dynamic> allTicketsNumbers) {
+    List<pw.Widget> ticketWidgets = [];
+
+    for (int ticketIndex = 0; ticketIndex < allTicketsNumbers.length; ticketIndex++) {
+      List<dynamic> ticketNumbers = allTicketsNumbers[ticketIndex];
+
+      // Add ticket header
+      ticketWidgets.add(
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          margin: const pw.EdgeInsets.only(bottom: 8),
+          decoration: pw.BoxDecoration(color: PdfColors.grey300, borderRadius: pw.BorderRadius.circular(4)),
+          child: pw.Text(
+            'Ticket #${ticketIndex + 1}',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.center,
+          ),
+        ),
+      );
+
+      // Add numbers grid for this ticket
+      ticketWidgets.add(buildSingleTicketGrid(ticketNumbers));
+
+      // Add spacing between tickets (except for the last one)
+      if (ticketIndex < allTicketsNumbers.length - 1) {
+        ticketWidgets.add(pw.SizedBox(height: 16));
+      }
+    }
+
+    return pw.Column(children: ticketWidgets);
+  }
+
+  // Helper method to build grid for a single ticket
+  pw.Widget buildSingleTicketGrid(List<dynamic> numbers) {
     List<pw.Widget> rows = [];
 
     // Create rows of 6 numbers each
@@ -113,16 +148,16 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> {
           children:
               rowNumbers.map((number) {
                 return pw.Container(
-                  width: 50,
-                  height: 50,
+                  width: 40,
+                  height: 40,
                   decoration: pw.BoxDecoration(
                     shape: pw.BoxShape.circle,
                     border: pw.Border.all(color: PdfColors.black, width: 1),
                   ),
                   child: pw.Center(
                     child: pw.Text(
-                      number.toString(),
-                      style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+                      number.toString().padLeft(2, '0'), // Format with leading zero if needed
+                      style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
                     ),
                   ),
                 );
@@ -131,7 +166,7 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> {
       );
 
       if (i + 6 < numbers.length) {
-        rows.add(pw.SizedBox(height: 8));
+        rows.add(pw.SizedBox(height: 6));
       }
     }
 
@@ -161,112 +196,112 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> {
     final pdf = pw.Document();
 
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
+        // Changed to MultiPage to handle multiple tickets better
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              // Header with Logo!!
-              pw.Center(child: pw.Image(image, height: 60, width: 120)),
-              pw.SizedBox(height: 20),
+          return [
+            // Header with Logo
+            pw.Center(child: pw.Image(image, height: 60, width: 120)),
+            pw.SizedBox(height: 20),
 
-              // Dashed border container for product info!!
+            // Dashed border container for product info
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(16),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black, width: 1),
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Center(
+                child: pw.Text(widget.productName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              ),
+            ),
+            pw.SizedBox(height: 20),
+
+            // Product Image
+            if (img != null) ...[
+              pw.Center(child: pw.Image(img, height: 100, width: 80)),
+              pw.SizedBox(height: 20),
+            ] else ...[
               pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.all(16),
+                height: 100,
+                width: 80,
                 decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black, width: 1),
+                  border: pw.Border.all(color: PdfColors.grey),
                   borderRadius: pw.BorderRadius.circular(8),
                 ),
-                child: pw.Center(
-                  child: pw.Text(widget.productName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                ),
+                child: pw.Center(child: pw.Text('No Image', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey))),
               ),
               pw.SizedBox(height: 20),
-
-              // Product Image
-              if (img != null) ...[
-                pw.Center(child: pw.Image(img, height: 100, width: 80)),
-                pw.SizedBox(height: 20),
-              ] else ...[
-                pw.Container(
-                  height: 100,
-                  width: 80,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey),
-                    borderRadius: pw.BorderRadius.circular(8),
-                  ),
-                  child: pw.Center(
-                    child: pw.Text('No Image', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey)),
-                  ),
-                ),
-                pw.SizedBox(height: 20),
-              ],
-
-              // Invoice Details
-              pw.Container(
-                width: double.infinity,
-                child: pw.Column(
-                  children: [
-                    invoiceRow('Product Name:', widget.productName, fontSize: 16),
-                    invoiceRow('Purchased By:', widget.purchasedBy, fontSize: 16),
-                    invoiceRow('Order:', widget.orderNumber, fontSize: 16),
-                    invoiceRow('VAT %:', widget.vat, fontSize: 16),
-                    invoiceRow('Order Status:', widget.status, fontSize: 16),
-                    invoiceRow('Total Value:', widget.amount, fontSize: 16),
-                    invoiceRow('Order Date:', widget.orderDate, fontSize: 16),
-                    invoiceRow('Draw Date:', widget.drawDate, fontSize: 16),
-                    invoiceRow('Reflex Draw Prize:', widget.prize, bold: true, fontSize: 16),
-                    invoiceRow('Order Number:', widget.orderNumber, fontSize: 16),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 20),
-              // Numbers Grid
-              buildNumbersGrid(widget.numbers),
-              pw.SizedBox(height: 20),
-              // Warning message
-              pw.Container(
-                width: double.infinity,
-                child: pw.Text(
-                  "Don't give up! You could be the next millionaire or winner in the upcoming draws.",
-                  style: pw.TextStyle(fontSize: 16, color: PdfColors.red),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // QR Code
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: generateQRData(), width: 120, height: 120),
-                    pw.SizedBox(height: 8),
-                    pw.Text(widget.orderNumber, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-              ),
-              pw.Spacer(),
-
-              // Footer Address
-              pw.Container(
-                width: double.infinity,
-                child: pw.Text(widget.address, style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Container(
-                width: double.infinity,
-                child: pw.Text(
-                  "Website: https://4uwin.ae",
-                  style: pw.TextStyle(fontSize: 10, color: PdfColors.blue),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ),
             ],
-          );
+
+            // Invoice Details
+            pw.Container(
+              width: double.infinity,
+              child: pw.Column(
+                children: [
+                  invoiceRow('Product Name:', widget.productName, fontSize: 16),
+                  invoiceRow('Purchased By:', widget.purchasedBy, fontSize: 16),
+                  invoiceRow('Order:', widget.orderNumber, fontSize: 16),
+                  invoiceRow('VAT %:', widget.vat, fontSize: 16),
+                  invoiceRow('Order Status:', widget.status, fontSize: 16),
+                  invoiceRow('Total Value:', widget.amount, fontSize: 16),
+                  invoiceRow('Order Date:', widget.orderDate, fontSize: 16),
+                  invoiceRow('Draw Date:', widget.drawDate, fontSize: 16),
+                  invoiceRow('Reflex Draw Prize:', widget.prize, bold: true, fontSize: 16),
+                  invoiceRow('Total Tickets:', widget.numbers.length.toString(), fontSize: 16),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+
+            // All Tickets Numbers Grid
+            buildAllTicketsGrid(widget.numbers),
+            pw.SizedBox(height: 20),
+
+            // Warning message
+            pw.Container(
+              width: double.infinity,
+              child: pw.Text(
+                "Don't give up! You could be the next millionaire or winner in the upcoming draws.",
+                style: pw.TextStyle(fontSize: 16, color: PdfColors.red),
+                textAlign: pw.TextAlign.center,
+              ),
+            ),
+            pw.SizedBox(height: 20),
+
+            // QR Code
+            pw.Center(
+              child: pw.Column(
+                children: [
+                  pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: generateQRData(), width: 120, height: 120),
+                  pw.SizedBox(height: 8),
+                  pw.Text(widget.orderNumber, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+            ),
+          ];
         },
+        footer:
+            (context) => pw.Column(
+              children: [
+                pw.Container(
+                  width: double.infinity,
+                  child: pw.Text(widget.address, style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Container(
+                  width: double.infinity,
+                  child: pw.Text(
+                    "Website: https://4uwin.ae",
+                    style: pw.TextStyle(fontSize: 10, color: PdfColors.blue),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
       ),
     );
 

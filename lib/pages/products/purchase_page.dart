@@ -420,13 +420,16 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                   }),
 
                   SizedBox(height: 20.h),
+
                   // Confirm Purchase Button!!
+                  // Replace the Confirm Purchase Button section in your PurchasePage with this fixed version
                   Consumer<ProductsServices>(
                     builder: (context, product, child) {
                       return PrimaryButton(
                         isLoading: product.isLoading,
                         onTap: () async {
                           List<Ticket> allTickets = [];
+                          List<List<int>> allTicketsNumbers = []; // Add this to collect all ticket numbers
 
                           for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
                             int selectedCount = getSelectedCheckboxCount(ticketIndex);
@@ -473,13 +476,14 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                             }
 
                             allTickets.add(Ticket(numbers: numbers, gameTypes: selectedGameTypes));
+                            allTicketsNumbers.add(numbers); 
                           }
 
                           final orderNumber = await product.purchaseTicket(
                             PurchaseTicketModel(productId: widget.productId ?? 0, tickets: allTickets),
                           );
 
-                          await product.fetchInvoice(orderNumber, [allTickets.last.numbers]);
+                          await product.fetchInvoice(orderNumber, allTicketsNumbers);
                         },
                         title: 'Confirm Purchase',
                       );
