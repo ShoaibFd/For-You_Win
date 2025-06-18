@@ -11,15 +11,42 @@ class QuantityProvider extends ChangeNotifier {
   }
 
   void increase(int index) {
-    if (_quantities[index] < 10) {
+    if (index < _quantities.length && _quantities[index] < 10) {
       _quantities[index]++;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   void decrease(int index) {
-    if (_quantities[index] > 1) {
+    if (index < _quantities.length && _quantities[index] > 1) {
       _quantities[index]--;
+      notifyListeners();
+    }
+  }
+
+  void resetAll(int length) {
+    _quantities = List.filled(length, 1);
+    notifyListeners();
+  }
+
+  // Optional: Clear all quantities (useful for complete reset)
+  void clear() {
+    _quantities.clear();
+    notifyListeners();
+  }
+
+  // Optional: Get quantity for specific index safely
+  int getQuantity(int index) {
+    if (index < _quantities.length) {
+      return _quantities[index];
+    }
+    return 1; // Default quantity
+  }
+
+  // Optional: Set quantity for specific index
+  void setQuantity(int index, int quantity) {
+    if (index < _quantities.length && quantity >= 1 && quantity <= 10) {
+      _quantities[index] = quantity;
       notifyListeners();
     }
   }

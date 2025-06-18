@@ -141,6 +141,7 @@ class _AppDrawerState extends State<AppDrawer> {
           // Logout Button!
           ListTile(
             onTap: () {
+              Navigator.pop(context);
               _showLogoutDialog(context);
             },
             leading: Image.asset('assets/images/logout.png', height: 26.h),

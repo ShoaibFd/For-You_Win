@@ -4,7 +4,7 @@ import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 
 class AppTextField extends StatelessWidget {
-  const AppTextField({
+   AppTextField({
     super.key,
     this.controller,
     this.keyboardType,
@@ -14,6 +14,7 @@ class AppTextField extends StatelessWidget {
     this.validator,
     this.obscureText = false,
     this.onSuffixIconTap,
+    this.onChanged
   });
 
   final TextEditingController? controller;
@@ -24,6 +25,7 @@ class AppTextField extends StatelessWidget {
   final String? Function(String?)? validator;
   final bool obscureText;
   final VoidCallback? onSuffixIconTap;
+  void Function(String)? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,7 @@ class AppTextField extends StatelessWidget {
                 ? GestureDetector(onTap: onSuffixIconTap, child: Icon(suffixIcon, color: secondaryColor))
                 : null,
       ),
+      onChanged: onChanged,
     );
   }
 }

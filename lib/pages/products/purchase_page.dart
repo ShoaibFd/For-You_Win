@@ -26,12 +26,11 @@ class PurchasePage extends StatefulWidget {
 }
 
 class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClientMixin {
-  // Controllers
+  // Controllers!!
   List<List<TextEditingController>> allTicketControllers = [];
   List<Map<String, bool>> allTicketGameTypes = [];
   List<List<FocusNode>> allTicketFocusNodes = [];
 
-  // Add flags to prevent multiple initialization
   bool _isInitialized = false;
   bool _dataFetched = false;
 
@@ -48,8 +47,6 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
     if (!_isInitialized) {
       _initializeControllers();
       _isInitialized = true;
-
-      // Use addPostFrameCallback to ensure context is ready
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_dataFetched) {
           _fetchData();
@@ -69,14 +66,13 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only initialize if not already done
     if (!_isInitialized) {
       _initializeOnce();
     }
   }
 
   void _initializeControllers() {
-    if (allTicketControllers.isNotEmpty) return; // Prevent re-initialization
+    if (allTicketControllers.isNotEmpty) return; 
 
     allTicketControllers.clear();
     allTicketGameTypes.clear();

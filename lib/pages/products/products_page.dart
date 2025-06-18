@@ -17,13 +17,19 @@ class ProductsPage extends StatefulWidget {
   State<ProductsPage> createState() => _ProductsPageState();
 }
 
-class _ProductsPageState extends State<ProductsPage> {
+class _ProductsPageState extends State<ProductsPage> with WidgetsBindingObserver, RouteAware {
   bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
     _initialized = false;
+    // Add observer to detect when app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+    // Reset quantities when page initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resetQuantities();
+    });
   }
 
   @override
@@ -52,17 +58,64 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
+  // Reset quantities when returning to this page
+  void _resetQuantities() {
+    if (!mounted) return;
+
+    try {
+      final quantitiesProvider = Provider.of<QuantityProvider>(context, listen: false);
+      final productsService = Provider.of<ProductsServices>(context, listen: false);
+      final productList = productsService.productsData?.data;
+
+      if (productList != null && productList.isNotEmpty) {
+        // Clear first, then reinitialize
+        quantitiesProvider.clear();
+        quantitiesProvider.initialize(productList.length);
+
+        // Debug print to verify reset
+        print("Quantities reset to: ${quantitiesProvider.quantities}");
+      }
+    } catch (e) {
+      print("Error resetting quantities: $e");
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reset quantities when app becomes active (user returns to app)
+    if (state == AppLifecycleState.resumed) {
+      _resetQuantities();
+    }
+  }
+
+  @override
+  void dispose() {
+    // Remove observer
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Reset quantities when disposing the page
+    final quantitiesProvider = Provider.of<QuantityProvider>(context, listen: false);
+    final productsService = Provider.of<ProductsServices>(context, listen: false);
+    final productList = productsService.productsData?.data;
+
+    if (productList != null && productList.isNotEmpty) {
+      quantitiesProvider.resetAll(productList.length);
+    }
+
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: secondaryColor,
       drawer: const AppDrawer(),
       appBar: AppBar(title: AppText('All Products', fontSize: 16.sp, fontWeight: FontWeight.w600)),
       body: Consumer2<ProductsServices, QuantityProvider>(
         builder: (context, products, quantitiesProvider, _) {
           // Show loading only when actually fetching data
           if (products.isLoading && (products.productsData?.data == null || products.productsData!.data.isEmpty)) {
-            return Center(child: AppLoading(color: primaryColor));
+            return Center(child: AppLoading());
           }
 
           final productList = products.productsData?.data;
@@ -180,9 +233,12 @@ class _ProductsPageState extends State<ProductsPage> {
                                   SizedBox(width: 12.w),
                                   // Buy Now Button!!
                                   GestureDetector(
-                                    onTap: () {
+                                    onTap: () async {
                                       final productId = int.tryParse(product.id.toString()) ?? 0;
-                                      Get.to(() => PurchasePage(productId: productId, quantity: currentQuantity));
+                                      // Navigate to purchase page and wait for result
+                                      await Get.to(() => PurchasePage(productId: productId, quantity: currentQuantity));
+                                      // Reset quantities when returning from purchase page
+                                      _resetQuantities();
                                     },
                                     child: Container(
                                       height: 34.h,

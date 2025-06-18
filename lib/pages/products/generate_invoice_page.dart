@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
 import 'package:for_u_win/components/app_text.dart';
+import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -24,7 +25,7 @@ class GenerateInvoicePage extends StatefulWidget {
   final String address;
   final String drawDate;
   final String prdouctImage;
-  final List<dynamic> numbers; // This now contains all tickets numbers
+  final List<dynamic> numbers;
 
   const GenerateInvoicePage({
     super.key,
@@ -340,50 +341,77 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> {
   }
 }
 
+void _navigateToProductsPage(BuildContext context) async {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder:
+        (_) => Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const AppLoading(),
+            SizedBox(height: 10.h),
+            AppText('Please wait untill invoice is printing..', color: secondaryColor),
+          ],
+        ),
+  );
+}
+
 class PdfViewerBottomSheet extends StatelessWidget {
   final Uint8List pdfData;
   final String orderNumber;
 
   const PdfViewerBottomSheet({super.key, required this.pdfData, required this.orderNumber});
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.95,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(topLeft: Radius.circular(20.r), topRight: Radius.circular(20.r)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            margin: EdgeInsets.only(top: 8.h),
-            width: 40.w,
-            height: 4.h,
-            decoration: BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(2.r)),
-          ),
-          Container(
-            padding: EdgeInsets.all(16.w),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                AppText('Invoice ', fontSize: 20.sp, fontWeight: FontWeight.bold),
-                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), tooltip: 'Close'),
-              ],
+    return WillPopScope(
+      onWillPop: () async {
+        _navigateToProductsPage(context);
+        return false;
+      },
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.95,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(20.r), topRight: Radius.circular(20.r)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: EdgeInsets.only(top: 8.h),
+              width: 40.w,
+              height: 4.h,
+              decoration: BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(2.r)),
             ),
-          ),
-          Expanded(
-            child: PdfPreview(
-              build: (format) => pdfData,
-              allowPrinting: true,
-              allowSharing: true,
-              canChangePageFormat: false,
-              canDebug: false,
-              maxPageWidth: MediaQuery.of(context).size.width,
-              pdfFileName: 'invoice_$orderNumber.pdf',
+            Container(
+              padding: EdgeInsets.all(16.w),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppText('Invoice ', fontSize: 20.sp, fontWeight: FontWeight.bold),
+                  IconButton(
+                    onPressed: () {
+                      _navigateToProductsPage(context);
+                    },
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: PdfPreview(
+                build: (format) => pdfData,
+                allowPrinting: true,
+                allowSharing: true,
+                canChangePageFormat: false,
+                canDebug: false,
+                maxPageWidth: MediaQuery.of(context).size.width,
+                pdfFileName: 'invoice_$orderNumber.pdf',
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

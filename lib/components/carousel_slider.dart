@@ -72,18 +72,18 @@ class _BannerCarouselState extends State<BannerCarousel> {
             },
           ),
         ),
-        const SizedBox(height: 10),
+         SizedBox(height: 10.h),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(bannerImages.length, (index) {
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              width: _currentIndex == index ? 12.0 : 8.0,
-              height: 8.0,
-              margin: const EdgeInsets.symmetric(horizontal: 4.0),
+              width: _currentIndex == index ? 12.w : 8.w,
+              height: 8.h,
+              margin:  EdgeInsets.symmetric(horizontal: 4.w),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _currentIndex == index ? secondaryColor : Colors.grey[400],
+                color: _currentIndex == index ? whiteColor : Colors.grey[400],
               ),
             );
           }),
