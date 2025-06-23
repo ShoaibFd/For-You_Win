@@ -30,31 +30,39 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<DashboardServices>();
-      final name = provider.dashboardData?.data?.products?.data.last.name;
-      if (name != null) {
-        provider.fetchHistory(name);
-      } else {
-        AppSnackbar.showErrorSnackbar('Product name not available');
-      }
+      provider.fetchHistory(widget.pageName);
     });
   }
 
-  // To Check If Tickets Are Available
-  bool _hasTicketsData(DashboardServices product) {
+  bool hasTicketsData(DashboardServices product) {
     return product.ticketHistoryData != null && product.ticketHistoryData!.tickets.isNotEmpty;
   }
 
-  // To Convert Values to String!!
   String _safeToString(dynamic value) {
     if (value == null) return 'N/A';
-    if (value.toString().isEmpty) return 'N/A';
+
+    // Check if it's a DateTime or looks like one
+    if (value is DateTime) {
+      return '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+    }
+
+   
+    if (value is String && value.contains('T')) {
+      try {
+        final date = DateTime.parse(value);
+        return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      } catch (_) {
+        return value;
+      }
+    }
+
     return value.toString();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: AppText('Ticket History', fontSize: 16.sp, fontWeight: FontWeight.w600)),
+      appBar: AppBar(title: AppText('Tickets History', fontSize: 16.sp, fontWeight: FontWeight.w600)),
       drawer: AppDrawer(),
       body: Padding(
         padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16),
@@ -70,17 +78,16 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 AppText('Your Tickets for ${widget.pageName}', fontSize: 18),
                 SizedBox(height: 10.h),
 
-                // Show print button only if data is available
-                _hasTicketsData(product)
+                hasTicketsData(product)
                     ? Align(
                       alignment: Alignment.bottomRight,
                       child: GestureDetector(
-                        onTap: () => _printTicketDetails(context, product),
+                        onTap: () => _printAllTicketDetails(context, product),
                         child: Container(
                           height: 30.h,
                           width: 70.w,
                           decoration: BoxDecoration(color: secondaryColor, borderRadius: BorderRadius.circular(20.r)),
-                          child: Center(child: AppText('Print', fontSize: 15.sp)),
+                          child: Center(child: AppText('Print All', fontSize: 13.sp)),
                         ),
                       ),
                     )
@@ -88,10 +95,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                 SizedBox(height: 10.h),
 
-                // Main content area
                 Expanded(
                   child:
-                      !_hasTicketsData(product)
+                      !hasTicketsData(product)
                           ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -114,48 +120,60 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             ),
                           )
                           : SingleChildScrollView(
-                            child: Builder(
-                              builder: (context) {
-                                final ticket = product.ticketHistoryData!.tickets.first;
+                            child: Column(
+                              children: [
+                                ...product.ticketHistoryData!.tickets.reversed.toList().asMap().entries.map((entry) {
+                                  final index = entry.key;
+                                  final ticket = entry.value;
 
-                                final List<MapEntry<String, String>> rows = [
-                                  MapEntry('Order Number', _safeToString(ticket.orderNumber)),
-                                  MapEntry('Order Date', _safeToString(ticket.orderDate)),
-                                  MapEntry('Draw Date', _safeToString(ticket.drawDate)),
-                                  MapEntry('Status', _safeToString(ticket.orderStatus)),
-                                  MapEntry('Prize', _safeToString(ticket.raffleDrawPrize)),
-                                  MapEntry('Numbers', _safeToString(ticket.numbers)),
-                                  MapEntry('Straight', _safeToString(ticket.straight)),
-                                  MapEntry('Rumble', _safeToString(ticket.rumble)),
-                                  MapEntry('Chance', _safeToString(ticket.chance)),
-                                  MapEntry('Is Announced', _safeToString(ticket.isAnnounced)),
-                                ];
-
-                                return Table(
-                                  border: TableBorder.all(
-                                    color: secondaryColor,
-                                    width: 1.5,
-                                    borderRadius: BorderRadius.circular(8.r),
-                                  ),
-                                  columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1)},
-                                  children: List.generate(rows.length ~/ 2, (index) {
-                                    return TableRow(
-                                      children: [
-                                        tableCell('${rows[index * 2].key}\n${rows[index * 2].value}'),
-                                        tableCell('${rows[index * 2 + 1].key}\n${rows[index * 2 + 1].value}'),
-                                      ],
-                                    );
-                                  }),
-                                );
-                              },
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: double.infinity,
+                                        padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
+                                        decoration: BoxDecoration(
+                                          color: secondaryColor.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8.r),
+                                          border: Border.all(color: secondaryColor.withOpacity(0.3)),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            AppText(
+                                              'Ticket ${index + 1}',
+                                              fontSize: 16.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            GestureDetector(
+                                              onTap: () => _printSingleTicketDetails(context, ticket, index + 1),
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                                                decoration: BoxDecoration(
+                                                  color: secondaryColor,
+                                                  borderRadius: BorderRadius.circular(15.r),
+                                                ),
+                                                child: AppText('Print', fontSize: 12.sp),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(height: 8.h),
+                                      // Ticket Table!!
+                                      ticketTable(ticket),
+                                      SizedBox(height: 16.h),
+                                    ],
+                                  );
+                                }),
+                              ],
                             ),
                           ),
                 ),
 
                 SizedBox(height: 16.h),
 
-                // Results info - only show if data is available
-                _hasTicketsData(product)
+                hasTicketsData(product)
                     ? AppText(
                       'Showing Results 1 to ${product.ticketHistoryData!.tickets.length} of ${product.ticketHistoryData!.tickets.length} Entries',
                     )
@@ -163,7 +181,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                 SizedBox(height: 16.h),
 
-                // Back button
                 Row(
                   children: [
                     ElevatedButton.icon(
@@ -182,48 +199,91 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  Widget tableCell(String text) {
-    // Split the text at the first newline
-    final parts = text.split('\n');
-    final heading = parts.isNotEmpty ? parts[0] : '';
-    final value = parts.length > 1 ? parts[1] : '';
+  Widget ticketTable(dynamic ticket) {
+    final isAnnounced = ticket.isAnnounced == true;
+    final isPurchased = ticket.orderStatus == true;
 
+    final List<MapEntry<String, Widget>> rows = [
+      MapEntry('Order Number', AppText(_safeToString(ticket.orderNumber))),
+      MapEntry('Order Date', AppText(_safeToString(ticket.orderDate))),
+      MapEntry('Draw Date', AppText(_safeToString(ticket.drawDate))),
+      MapEntry(
+        'Status',
+        AppText(
+          isPurchased ? 'Purchased' : 'Not Purchased',
+          color: isPurchased ? Colors.blue : secondaryColor,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      MapEntry('Prize', AppText(_safeToString(ticket.raffleDrawPrize))),
+      MapEntry('Numbers', AppText(_safeToString(ticket.numbers))),
+      MapEntry('Straight', AppText(_safeToString(ticket.straight))),
+      MapEntry('Rumble', AppText(_safeToString(ticket.rumble))),
+      MapEntry('Chance', AppText(_safeToString(ticket.chance))),
+      MapEntry(
+        'Ticket Announced',
+        AppText(
+          isAnnounced ? 'Announced' : 'Not Announced',
+          color: isAnnounced ? Colors.blue : secondaryColor,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ];
+
+    return Table(
+      border: TableBorder.all(color: secondaryColor, width: 1.5, borderRadius: BorderRadius.circular(8.r)),
+      columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1)},
+      children: List.generate(rows.length ~/ 2, (index) {
+        return TableRow(
+          children: [
+            tableCell(rows[index * 2].key, rows[index * 2].value),
+            tableCell(rows[index * 2 + 1].key, rows[index * 2 + 1].value),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget tableCell(String label, Widget child) {
     return Container(
       height: 90.h,
       padding: EdgeInsets.all(12.r),
-      color: Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AppText(heading, fontWeight: FontWeight.normal),
-          SizedBox(height: 4.h),
-          AppText(value, fontWeight: FontWeight.bold),
-        ],
+        children: [AppText(label, fontWeight: FontWeight.normal), SizedBox(height: 4.h), child],
       ),
     );
   }
 
-  // Print functionality
-  Future<void> _printTicketDetails(BuildContext context, DashboardServices product) async {
-    if (!_hasTicketsData(product)) {
-      AppSnackbar.showErrorSnackbar('No ticket data to print');
-      return;
-    }
-
-    final ticket = product.ticketHistoryData!.tickets.first;
-
+  Future<void> _printSingleTicketDetails(BuildContext context, dynamic ticket, int ticketNumber) async {
     try {
       await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => _generatePdf(ticket),
-        name: 'Ticket_${_safeToString(ticket.orderNumber)}',
+        onLayout: (PdfPageFormat format) async => _generateSingleTicketPdf(ticket, ticketNumber),
+        name: 'Ticket_${ticketNumber}_${_safeToString(ticket.orderNumber)}',
       );
     } catch (e) {
       AppSnackbar.showErrorSnackbar('Error printing: $e');
     }
   }
 
-  Future<Uint8List> _generatePdf(dynamic ticket) async {
+  Future<void> _printAllTicketDetails(BuildContext context, DashboardServices product) async {
+    if (!hasTicketsData(product)) {
+      AppSnackbar.showErrorSnackbar('No ticket data to print');
+      return;
+    }
+
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => _generateAllTicketsPdf(product.ticketHistoryData!.tickets),
+        name: 'All_Tickets_${widget.pageName}',
+      );
+    } catch (e) {
+      AppSnackbar.showErrorSnackbar('Error printing: $e');
+    }
+  }
+
+  Future<Uint8List> _generateSingleTicketPdf(dynamic ticket, int ticketNumber) async {
     final pdf = pw.Document();
 
     pdf.addPage(
@@ -233,7 +293,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Header
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(20),
@@ -242,7 +301,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
-                      'Ticket Details for ${widget.pageName}',
+                      'Ticket $ticketNumber Details for ${widget.pageName}',
                       style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.SizedBox(height: 10),
@@ -253,10 +312,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   ],
                 ),
               ),
-
               pw.SizedBox(height: 30),
-
-              // Ticket Information Table
               pw.Table(
                 border: pw.TableBorder.all(color: PdfColors.grey600, width: 1),
                 columnWidths: const {0: pw.FlexColumnWidth(1), 1: pw.FlexColumnWidth(2)},
@@ -273,10 +329,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   tableRow('Is Announced', _safeToString(ticket.isAnnounced)),
                 ],
               ),
-
               pw.SizedBox(height: 30),
-
-              // Footer Message
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(15),
@@ -299,7 +352,79 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return pdf.save();
   }
 
-  // Table Row Component for PDF
+  Future<Uint8List> _generateAllTicketsPdf(List<dynamic> tickets) async {
+    final pdf = pw.Document();
+
+    for (int i = 0; i < tickets.length; i++) {
+      final ticket = tickets[i];
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.all(20),
+                  decoration: pw.BoxDecoration(color: PdfColors.grey300, borderRadius: pw.BorderRadius.circular(8)),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        'Ticket ${i + 1} of ${tickets.length} - ${widget.pageName}',
+                        style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Text(
+                        'Generated on: ${DateTime.now().toString().split('.')[0]}',
+                        style: const pw.TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 30),
+                pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey600, width: 1),
+                  columnWidths: const {0: pw.FlexColumnWidth(1), 1: pw.FlexColumnWidth(2)},
+                  children: [
+                    tableRow('Order Number', _safeToString(ticket.orderNumber)),
+                    tableRow('Order Date', _safeToString(ticket.orderDate)),
+                    tableRow('Draw Date', _safeToString(ticket.drawDate)),
+                    tableRow('Status', _safeToString(ticket.orderStatus)),
+                    tableRow('Prize', _safeToString(ticket.raffleDrawPrize)),
+                    tableRow('Numbers', _safeToString(ticket.numbers)),
+                    tableRow('Straight', _safeToString(ticket.straight)),
+                    tableRow('Rumble', _safeToString(ticket.rumble)),
+                    tableRow('Chance', _safeToString(ticket.chance)),
+                    tableRow('Is Announced', _safeToString(ticket.isAnnounced)),
+                  ],
+                ),
+                pw.SizedBox(height: 30),
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.all(15),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey400),
+                    borderRadius: pw.BorderRadius.circular(5),
+                  ),
+                  child: pw.Text(
+                    'This is an official ticket record generated from the system.',
+                    style: const pw.TextStyle(fontSize: 10),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    return pdf.save();
+  }
+
   pw.TableRow tableRow(String label, String value) {
     return pw.TableRow(
       children: [

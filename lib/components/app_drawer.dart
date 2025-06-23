@@ -85,7 +85,18 @@ class _AppDrawerState extends State<AppDrawer> {
                 title: AppText('Royal-6', fontSize: 14.sp),
               ),
             ),
-            // Mega-3 Button!
+            // 4uwin Button!
+            Padding(
+              padding: EdgeInsets.only(left: 50.w),
+              child: ListTile(
+                onTap: () {
+                  Get.to(() => ForYouPage());
+                },
+                leading: Image.asset('assets/images/star.png', height: 30.h),
+                title: AppText('4uwin-5', fontSize: 14.sp),
+              ),
+            ),
+            // Mega-4 Button!
             Padding(
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
@@ -118,17 +129,6 @@ class _AppDrawerState extends State<AppDrawer> {
                 title: AppText('Click-2', fontSize: 14.sp),
               ),
             ),
-            // 4uwin Button!
-            Padding(
-              padding: EdgeInsets.only(left: 50.w),
-              child: ListTile(
-                onTap: () {
-                  Get.to(() => ForYouPage());
-                },
-                leading: Image.asset('assets/images/star.png', height: 30.h),
-                title: AppText('4uwin', fontSize: 14.sp),
-              ),
-            ),
           ],
           // Invoice Button!
           ListTile(
@@ -145,7 +145,7 @@ class _AppDrawerState extends State<AppDrawer> {
               _showLogoutDialog(context);
             },
             leading: Image.asset('assets/images/logout.png', height: 26.h),
-            title: AppText('LogOut.', fontSize: 16.sp),
+            title: AppText('Logout.', fontSize: 16.sp, color: Colors.red),
           ),
         ],
       ),
@@ -159,7 +159,7 @@ class _AppDrawerState extends State<AppDrawer> {
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-          title: AppText('Confirm Logout', fontSize: 18.sp, fontWeight: FontWeight.w600),
+          // title: AppText('Confirm Logout', fontSize: 18.sp, fontWeight: FontWeight.w600),
           content: AppText('Are you sure you want to logout?', fontSize: 15.sp),
           actions: [
             TextButton(onPressed: () => Get.back(), child: AppText('Cancel', fontSize: 14.sp, color: Colors.grey)),

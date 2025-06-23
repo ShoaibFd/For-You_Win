@@ -8,7 +8,6 @@ import 'package:for_u_win/storage/shared_prefs.dart';
 import 'package:http/http.dart' as http;
 
 class InvoiceServices with ChangeNotifier {
-
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -17,15 +16,19 @@ class InvoiceServices with ChangeNotifier {
 
   final SharedPrefs _sharedPrefs = SharedPrefs();
 
-  // My Earnings Function
+  /// My Earnings Function
   Future<bool> postEarning(String reportType, {DateTime? startDate, DateTime? endDate}) async {
-    _isLoading = true;
-    notifyListeners();
-
     try {
-      
+      _isLoading = true;
+      notifyListeners();
+
       final token = await _sharedPrefs.getToken();
-      Map<String, dynamic> requestBody = {'report_type': reportType};
+
+      final Map<String, dynamic> requestBody = {
+        'report_type': reportType,
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+      };
 
       final response = await http.post(
         Uri.parse(myEarningUrl),
@@ -38,14 +41,13 @@ class InvoiceServices with ChangeNotifier {
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         _earningData = responseData;
-        AppSnackbar.showSuccessSnackbar('Earning Fetched Successfully!');
+      
         return true;
-
       } else {
         log("Request failed: ${response.statusCode}");
+        AppSnackbar.showErrorSnackbar('Failed to fetch earnings.');
         return false;
       }
-
     } catch (e) {
       log("Earning error: $e");
       AppSnackbar.showErrorSnackbar('Something went wrong. Please try again.');
@@ -56,7 +58,7 @@ class InvoiceServices with ChangeNotifier {
     }
   }
 
-  // Clear earning data
+  /// Clear earning data
   void clearEarningData() {
     _earningData = null;
     notifyListeners();

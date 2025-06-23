@@ -59,50 +59,36 @@ class _ProductsPageState extends State<ProductsPage> with WidgetsBindingObserver
   }
 
   // Reset quantities when returning to this page
-  void _resetQuantities() {
-    if (!mounted) return;
-
-    try {
-      final quantitiesProvider = Provider.of<QuantityProvider>(context, listen: false);
-      final productsService = Provider.of<ProductsServices>(context, listen: false);
-      final productList = productsService.productsData?.data;
-
-      if (productList != null && productList.isNotEmpty) {
-        // Clear first, then reinitialize
-        quantitiesProvider.clear();
-        quantitiesProvider.initialize(productList.length);
-
-        // Debug print to verify reset
-        print("Quantities reset to: ${quantitiesProvider.quantities}");
-      }
-    } catch (e) {
-      print("Error resetting quantities: $e");
-    }
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Reset quantities when app becomes active (user returns to app)
     if (state == AppLifecycleState.resumed) {
       _resetQuantities();
+    }
+    // Add reset logic when app goes to background/is closed
+    else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      if (mounted) {
+        _resetQuantities();
+      }
+    }
+  }
+
+  void _resetQuantities() {
+    if (mounted) {
+      final quantitiesProvider = Provider.of<QuantityProvider>(context, listen: false);
+      final productsService = Provider.of<ProductsServices>(context, listen: false);
+      final productList = productsService.productsData?.data;
+      if (productList != null && productList.isNotEmpty) {
+        quantitiesProvider.resetAll(productList.length);
+      }
     }
   }
 
   @override
   void dispose() {
-    // Remove observer
     WidgetsBinding.instance.removeObserver(this);
-
-    // Reset quantities when disposing the page
-    final quantitiesProvider = Provider.of<QuantityProvider>(context, listen: false);
-    final productsService = Provider.of<ProductsServices>(context, listen: false);
-    final productList = productsService.productsData?.data;
-
-    if (productList != null && productList.isNotEmpty) {
-      quantitiesProvider.resetAll(productList.length);
-    }
-
     super.dispose();
   }
 

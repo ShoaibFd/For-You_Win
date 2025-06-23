@@ -79,7 +79,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
                 final productList = product.dashboardData?.data?.products?.data;
 
-                if (productList == null || productList.isEmpty) {
+                if (productList == null) {
                   return Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -105,9 +105,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
                     return GestureDetector(
                       onTap: () {
-                        product.fetchHistory(products.id.toString());
-                        debugPrint('Product Id :${products.id}');
-                        Get.to(() => ProductDetailPage(pageName: products.name ?? ""));
+                        final pageName = products.name;
+                        debugPrint('Product Id :${products.name}');
+                        Get.to(() => ProductDetailPage(pageName: pageName.toString()));
                       },
                       child: Padding(
                         padding: EdgeInsets.symmetric(horizontal: 14.w),

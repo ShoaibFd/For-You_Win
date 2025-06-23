@@ -8,7 +8,7 @@ import 'package:for_u_win/data/models/products/buy_now_response.dart';
 import 'package:for_u_win/data/models/products/invoice_response.dart';
 import 'package:for_u_win/data/models/products/products_detail_response.dart';
 import 'package:for_u_win/data/models/products/products_response.dart';
-import 'package:for_u_win/pages/products/generate_invoice_page.dart';
+import 'package:for_u_win/pages/products/invoice_page/generate_invoice_page.dart';
 import 'package:for_u_win/pages/products/model/purchase_ticket_response.dart';
 import 'package:for_u_win/pages/products/purchase_page.dart';
 import 'package:for_u_win/storage/shared_prefs.dart';
@@ -106,36 +106,44 @@ class ProductsServices with ChangeNotifier {
     Future.microtask(() => notifyListeners());
   }
 
-  // Buy Products Function!!
-  purchaseTicket(PurchaseTicketModel request) async {
+  Future<String?> purchaseTicket(PurchaseTicketModel request) async {
     try {
       final token = await _sharedPrefs.getToken();
       _isLoading = true;
       Future.microtask(() => notifyListeners());
+
+      // Debug: Print the request data before sending
+      log('Purchase Request Data: ${jsonEncode(request.toJson())}');
+
       final response = await http.post(
         Uri.parse(purchaseTicketUrl),
         body: jsonEncode(request.toJson()),
         headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
       );
+
       log('Response in Purchase Ticket: ${response.statusCode}:${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final jsonData = jsonDecode(response.body);
         final orderNumber = jsonData['orderNumber'];
-        AppSnackbar.showSuccessSnackbar(jsonData['message']);
-        return orderNumber;
+        AppSnackbar.showSuccessSnackbar(jsonData['message'] ?? 'Purchase successful!');
+        return orderNumber?.toString();
       } else {
         final jsonData = jsonDecode(response.body);
-        AppSnackbar.showErrorSnackbar(jsonData['message']);
+        AppSnackbar.showErrorSnackbar(jsonData['message'] ?? 'Purchase failed');
+        return null;
       }
     } catch (e) {
       log('Error During Purchasing Products: $e');
+      AppSnackbar.showErrorSnackbar('Network error. Please try again.');
+      return null;
     } finally {
       _isLoading = false;
       Future.microtask(() => notifyListeners());
     }
   }
 
-  Future<InvoiceResponse?> fetchInvoice(int orderNumber, List numbers, {int? index}) async {
+  Future<InvoiceResponse?> fetchInvoice(String orderNumber, List numbers, {int? index}) async {
     try {
       _isLoading = true;
       Future.microtask(() => notifyListeners());
@@ -154,9 +162,9 @@ class ProductsServices with ChangeNotifier {
         Get.to(
           () => GenerateInvoicePage(
             numbers: numbers,
-            prdouctImage: invoice.productImage,
+            productImage: invoice.productImage,
             img: invoice.productImage,
-            orderNumber: '$orderNumber',
+            orderNumber: orderNumber,
             productName: invoice.productName,
             status: invoice.orderStatus,
             orderDate: invoice.orderDate,

@@ -31,9 +31,9 @@ class PrimaryButton extends StatelessWidget {
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: Container(
-        height: height ?? 45.h,
+        height: height ?? 50.h,
         width: width ?? Get.width,
-        decoration: BoxDecoration(color: backgroundColor ?? primaryColor, borderRadius: BorderRadius.circular(6.r)),
+        decoration: BoxDecoration(color: backgroundColor ?? primaryColor, borderRadius: BorderRadius.circular(12.r)),
         child: Center(
           child:
               isLoading

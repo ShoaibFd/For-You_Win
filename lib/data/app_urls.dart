@@ -15,4 +15,4 @@ const String thrillTicketUrl = '$baseUrl/search-winners/thrill3';
 const String megaTicketUrl = '$baseUrl/search-winners/mega4';
 const String payNowUrl = '$baseUrl/ticket/pay-now';
 const String checkTicketUrl = '$baseUrl/check-ticket';
-const String myEarningUrl = '$baseUrl/my-earnings';
+const String myEarningUrl = '$baseUrl/my-earnings/invoice';

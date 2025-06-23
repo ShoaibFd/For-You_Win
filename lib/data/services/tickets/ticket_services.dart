@@ -277,10 +277,12 @@ class TicketServices with ChangeNotifier {
       // Successful Response!!
       log('Response in Pay Ticket: ${response.statusCode}, ${response.body}');
       log('Order Number: $orderNumber and Price: $price');
+      final jsonData = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        AppSnackbar.showSuccessSnackbar('Ticket Paid Successfully!');
+        AppSnackbar.showSuccessSnackbar(jsonData['message']);
       } else {
         log("Payment failed: ${response.statusCode}");
+        AppSnackbar.showSuccessSnackbar(jsonData['message']);
       }
     } catch (e) {
       log("Payment error: $e");

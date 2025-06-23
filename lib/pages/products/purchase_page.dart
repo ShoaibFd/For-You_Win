@@ -72,7 +72,7 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
   }
 
   void _initializeControllers() {
-    if (allTicketControllers.isNotEmpty) return; 
+    if (allTicketControllers.isNotEmpty) return;
 
     allTicketControllers.clear();
     allTicketGameTypes.clear();
@@ -132,20 +132,34 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
     return count;
   }
 
+  // Fixed function to collect game types with proper formatting
+  List<String> getSelectedGameTypes(int ticketIndex) {
+    List<String> selectedGameTypes = [];
+    
+    allTicketGameTypes[ticketIndex].forEach((gameType, isSelected) {
+      if (isSelected) {
+        // Convert to uppercase format expected by API
+        selectedGameTypes.add(gameType.toUpperCase());
+      }
+    });
+    
+    return selectedGameTypes;
+  }
+
   double calculateTotalPrice(double basePrice, double vatPercentage, int numberOfField) {
     double totalPrice = 0;
 
     for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
       int selectedGameTypes = getSelectedCheckboxCount(ticketIndex);
 
-      if (numberOfField == 6) {
-        // For 6-field games, each ticket costs the base price
-        totalPrice += basePrice;
-      } else {
-        // For other games, price multiplies by selected game types (minimum 1)
-        int multiplier = selectedGameTypes == 0 ? 1 : selectedGameTypes;
-        totalPrice += basePrice * multiplier;
-      }
+      int multiplier = numberOfField == 6 ? 1 : (selectedGameTypes == 0 ? 1 : selectedGameTypes);
+
+      double pricePerTicket = basePrice * multiplier;
+
+      // Calculate VAT for this ticket
+      double vatAmount = pricePerTicket * (vatPercentage / 100);
+
+      totalPrice += pricePerTicket + vatAmount;
     }
 
     return totalPrice;
@@ -170,6 +184,92 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
     return totalVAT;
   }
 
+  // Fixed validation function
+  bool _validateTicket(int ticketIndex, int numberOfField) {
+    // Check if all number fields are filled
+    for (int i = 0; i < numberOfField; i++) {
+      if (i >= allTicketControllers[ticketIndex].length || 
+          allTicketControllers[ticketIndex][i].text.isEmpty) {
+        return false;
+      }
+    }
+
+    // For 6-field games, check unique numbers
+    if (numberOfField == 6) {
+      return _hasUniqueNumbers(ticketIndex, numberOfField);
+    }
+
+    // For other games, check if at least one game type is selected
+    return getSelectedCheckboxCount(ticketIndex) > 0;
+  }
+
+  // Fixed purchase function
+  Future<void> _handlePurchase() async {
+    final provider = context.read<ProductsServices>();
+    final data = provider.productsDetailData?.data;
+    final numberOfField = data?.numberOfCircles ?? 0;
+
+    List<Ticket> allTickets = [];
+    List<List<int>> allTicketsNumbers = [];
+
+    // Validate all tickets first
+    for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
+      if (!_validateTicket(ticketIndex, numberOfField)) {
+        String errorMessage;
+        
+        if (numberOfField == 6) {
+          if (!_hasUniqueNumbers(ticketIndex, numberOfField)) {
+            errorMessage = 'Please ensure all numbers are unique for Ticket #${ticketIndex + 1}';
+          } else {
+            errorMessage = 'Please fill all number fields for Ticket #${ticketIndex + 1}';
+          }
+        } else {
+          if (getSelectedCheckboxCount(ticketIndex) == 0) {
+            errorMessage = 'Please select at least one game type for Ticket #${ticketIndex + 1}';
+          } else {
+            errorMessage = 'Please fill all number fields for Ticket #${ticketIndex + 1}';
+          }
+        }
+        
+        AppSnackbar.showInfoSnackbar(errorMessage);
+        return;
+      }
+    }
+
+    // Collect all ticket data
+    for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
+      List<int> numbers = [];
+      for (int i = 0; i < numberOfField; i++) {
+        final num = int.tryParse(allTicketControllers[ticketIndex][i].text.trim());
+        if (num != null) {
+          numbers.add(num);
+        }
+      }
+
+      
+      List<String> selectedGameTypes = [];
+      if (numberOfField != 6) {
+        selectedGameTypes = getSelectedGameTypes(ticketIndex);
+      }
+
+      allTickets.add(Ticket(numbers: numbers, gameTypes: selectedGameTypes));
+      allTicketsNumbers.add(numbers);
+    }
+
+    // Make the purchase
+    try {
+      final orderNumber = await provider.purchaseTicket(
+        PurchaseTicketModel(productId: widget.productId ?? 0, tickets: allTickets),
+      );
+
+      if (orderNumber != null) {
+        await provider.fetchInvoice(orderNumber, allTicketsNumbers);
+      }
+    } catch (e) {
+      AppSnackbar.showErrorSnackbar('Purchase failed. Please try again.');
+    }
+  }
+
   @override
   void dispose() {
     for (var ticketControllers in allTicketControllers) {
@@ -187,7 +287,7 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context); 
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -210,9 +310,10 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
             final double vatValue = double.tryParse(vat ?? '0') ?? 0.0;
 
             final double totalAmount = calculateTotalPrice(priceValue, vatValue, numberOfField);
+            final double finalPrice = totalAmount;
             final double vatAmount = calculateTotalVAT(priceValue, vatValue, numberOfField);
 
-            if (data == null && _dataFetched) {
+            if (_dataFetched && data == null && !product.isLoading) {
               return const Center(child: AppText('Nothing found!!'));
             }
 
@@ -241,7 +342,7 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                         AppText("Choose Your Numbers", fontSize: 16.sp, fontWeight: FontWeight.bold),
                         AppText("Quantity: ${widget.quantity}", fontSize: 16.sp, fontWeight: FontWeight.w500),
                         Divider(thickness: 2, height: 24.h),
-                        AppText("Total Amount: AED ${totalAmount.toStringAsFixed(2)}", fontSize: 16.sp),
+                        AppText("Total Amount: AED ${finalPrice.toStringAsFixed(0)}", fontSize: 16.sp),
                         AppText(
                           "VAT (${vatValue.toStringAsFixed(0)}%): AED ${vatAmount.toStringAsFixed(4)}",
                           fontSize: 16.sp,
@@ -358,7 +459,7 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                                               : const BorderSide(color: Colors.blue, width: 2),
                                     ),
                                   ),
-                                  style: TextStyle(fontSize: 17.sp),
+                                  style: TextStyle(fontSize: 15.sp),
                                 ),
                               );
                             }),
@@ -417,70 +518,11 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
 
                   SizedBox(height: 20.h),
 
-                  // Confirm Purchase Button!!
-                  // Replace the Confirm Purchase Button section in your PurchasePage with this fixed version
                   Consumer<ProductsServices>(
                     builder: (context, product, child) {
                       return PrimaryButton(
                         isLoading: product.isLoading,
-                        onTap: () async {
-                          List<Ticket> allTickets = [];
-                          List<List<int>> allTicketsNumbers = []; // Add this to collect all ticket numbers
-
-                          for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
-                            int selectedCount = getSelectedCheckboxCount(ticketIndex);
-
-                            if (numberOfField != 6 && selectedCount == 0) {
-                              AppSnackbar.showInfoSnackbar(
-                                'Please select at least one checkbox for Ticket #${ticketIndex + 1}',
-                              );
-                              return;
-                            }
-
-                            if (numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)) {
-                              AppSnackbar.showInfoSnackbar(
-                                'Please ensure all numbers are unique for Ticket #${ticketIndex + 1}',
-                              );
-                              return;
-                            }
-
-                            // Collect numbers
-                            List<int> numbers = [];
-                            for (int i = 0; i < numberOfField; i++) {
-                              if (i < allTicketControllers[ticketIndex].length &&
-                                  allTicketControllers[ticketIndex][i].text.isNotEmpty) {
-                                final num = int.tryParse(allTicketControllers[ticketIndex][i].text);
-                                if (num != null) {
-                                  numbers.add(num);
-                                }
-                              }
-                            }
-
-                            if (numbers.length != numberOfField) {
-                              AppSnackbar.showInfoSnackbar(
-                                'Please fill all number fields for Ticket #${ticketIndex + 1}',
-                              );
-                              return;
-                            }
-
-                            // Collect game types
-                            List<String> selectedGameTypes = [];
-                            if (numberOfField != 6) {
-                              allTicketGameTypes[ticketIndex].forEach((gameType, isSelected) {
-                                if (isSelected) selectedGameTypes.add(gameType);
-                              });
-                            }
-
-                            allTickets.add(Ticket(numbers: numbers, gameTypes: selectedGameTypes));
-                            allTicketsNumbers.add(numbers); 
-                          }
-
-                          final orderNumber = await product.purchaseTicket(
-                            PurchaseTicketModel(productId: widget.productId ?? 0, tickets: allTickets),
-                          );
-
-                          await product.fetchInvoice(orderNumber, allTicketsNumbers);
-                        },
+                        onTap: _handlePurchase,
                         title: 'Confirm Purchase',
                       );
                     },
