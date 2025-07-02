@@ -95,12 +95,10 @@ class TicketServices with ChangeNotifier {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-        // Updated to handle the direct response structure
-        if (responseData['status'] == true) {
+        if (responseData['success'] == true) {
           _foryouTicketData = responseData;
 
-          // Display appropriate message based on whether there are winners
-          if (responseData['has_winners'] == true) {
+          if (responseData['hasWinners'] == true) {
             AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
           } else {
             AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'Data fetched successfully!');
@@ -141,11 +139,9 @@ class TicketServices with ChangeNotifier {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-        // Updated to handle the direct response structure
         if (responseData['success'] == true) {
           _megaTicketData = responseData;
 
-          // Display appropriate message based on whether there are winners
           if (responseData['hasWinners'] == true) {
             AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
           } else {
@@ -233,11 +229,9 @@ class TicketServices with ChangeNotifier {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-        // Updated to handle the direct response structure
-        if (responseData['status'] == true) {
+        if (responseData['success'] == true) {
           _clickTicketData = responseData;
 
-          // Display appropriate message based on whether there are winners
           if (responseData['has_winners'] == true) {
             AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
           } else {
@@ -264,19 +258,19 @@ class TicketServices with ChangeNotifier {
   }
 
   // Pay Now Function
-  Future<void> payTicket(String orderNumber, String price) async {
+  Future<void> payTicket(int ticketNumber, String price) async {
     try {
       _isLoading = true;
       notifyListeners();
       final token = await _sharedPrefs.getToken();
       final response = await http.post(
-        Uri.parse('$payNowUrl/$orderNumber'),
+        Uri.parse('$payNowUrl/$ticketNumber'),
         body: {'matched_price': price},
         headers: {'Authorization': 'Bearer $token'},
       );
       // Successful Response!!
       log('Response in Pay Ticket: ${response.statusCode}, ${response.body}');
-      log('Order Number: $orderNumber and Price: $price');
+      log('Order Number: $ticketNumber and Price: $price');
       final jsonData = jsonDecode(response.body);
       if (response.statusCode == 200) {
         AppSnackbar.showSuccessSnackbar(jsonData['message']);

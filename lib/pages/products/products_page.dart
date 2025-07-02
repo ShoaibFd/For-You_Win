@@ -24,9 +24,7 @@ class _ProductsPageState extends State<ProductsPage> with WidgetsBindingObserver
   void initState() {
     super.initState();
     _initialized = false;
-    // Add observer to detect when app lifecycle changes
     WidgetsBinding.instance.addObserver(this);
-    // Reset quantities when page initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _resetQuantities();
     });

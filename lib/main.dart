@@ -6,14 +6,15 @@ import 'package:for_u_win/data/providers/products_provider.dart';
 import 'package:for_u_win/data/services/auth/auth_services.dart';
 import 'package:for_u_win/data/services/dashboard/dashboard_services.dart';
 import 'package:for_u_win/data/services/invoice/invoice_services.dart';
-import 'package:for_u_win/data/services/tickets/ticket_services.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
+import 'package:for_u_win/data/services/tickets/ticket_services.dart';
 import 'package:for_u_win/pages/splash/splash_page.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(
     MultiProvider(
       providers: [

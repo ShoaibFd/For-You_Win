@@ -88,6 +88,10 @@ class _RoyalPageState extends State<RoyalPage> with TickerProviderStateMixin {
   }
 
   Future<void> handlePayment(TicketServices ticket, Map<String, dynamic> matchedTicket) async {
+    // Process payment through ticket service
+    final ticketId = matchedTicket['ticket_id'];
+    await ticket.payTicket(ticketId, matchedTicket['matched_price']);
+    log('Ticket Id in RoyalPage: $ticketId');
     // Prepare invoice data
     invoiceData = {
       'ticket': matchedTicket,
@@ -95,20 +99,12 @@ class _RoyalPageState extends State<RoyalPage> with TickerProviderStateMixin {
       'status': ticket.royalTicketData!['status'],
       'hasWinners': ticket.royalTicketData!['has_winners'],
     };
-
-    // Show invoice animation
     showInvoiceAnimation();
-
-    // Start printing process
     await handlePrint(matchedTicket);
-
     // Mark ticket as paid
     setState(() {
       paidTicketId = matchedTicket['ticket_id'].toString();
     });
-
-    // Process payment through ticket service
-    await ticket.payTicket(ticket.royalTicketData!['order_number'], matchedTicket['matched_price']);
   }
 
   Future<void> handlePrint(Map<String, dynamic> matchedTicket) async {
@@ -409,7 +405,7 @@ class _RoyalPageState extends State<RoyalPage> with TickerProviderStateMixin {
                           ),
                           filled: true,
                           fillColor: primaryColor,
-                          hintText: 'Enter Ticket Number or Order Number',
+                          hintText: 'Enter Order Number',
                           hintStyle: TextStyle(fontSize: 11.sp),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.r),
@@ -445,18 +441,21 @@ class _RoyalPageState extends State<RoyalPage> with TickerProviderStateMixin {
                               SizedBox(height: 20.h),
 
                               ...ticket.royalTicketData!['matched_tickets']?.map<Widget>((matched) {
-                                    final ticketId = matched['ticket_id'].toString();
-                                    final isPaid = paidTicketId == ticketId;
+                                    // final ticketId = matched['ticket_id'].toString();
+                                    final isPaid = matched['paid_by'] != null;
 
                                     final rows = [
                                       MapEntry('Candidate', matched['candidate'].toString()),
                                       MapEntry('Ticket ID', matched['ticket_id'].toString()),
                                       MapEntry('Product', matched['product_name'].toString()),
+                                      MapEntry('Order Number', matched['order_number'].toString()),
+                                      MapEntry('Status', matched['order_status'] == 1 ? 'Paid' : 'Unpaid'),
+                                      MapEntry('Winning Numbers', matched['numbers']?.join(', ') ?? ''),
+                                      MapEntry('Matched Numbers', matched['matched_numbers']?.join(', ') ?? ''),
+                                      MapEntry('Matched Prize', matched['matched_price'].toString()),
+                                      MapEntry('RAffle Fraw Prize', matched['raffle_draw_prize'].toString()),
                                       MapEntry('Draw Date', matched['draw_date'].toString()),
                                       MapEntry('Order Date', matched['order_date'].toString()),
-                                      MapEntry('Numbers', matched['numbers']?.join(', ') ?? ''),
-                                      MapEntry('Matched', matched['matched_numbers']?.join(', ') ?? ''),
-                                      MapEntry('Prize', matched['matched_price'].toString()),
                                     ];
 
                                     return Column(
@@ -486,7 +485,9 @@ class _RoyalPageState extends State<RoyalPage> with TickerProviderStateMixin {
                                         SizedBox(height: 16.h),
 
                                         // Pay Now Button or Paid Status
-                                        if (isPaid)
+                                        if (isPaid ||
+                                            matched['order_status']?.toString().toLowerCase() == '1' ||
+                                            matched['payment_status']?.toString().toLowerCase() == 'completed')
                                           Container(
                                             width: double.infinity,
                                             padding: EdgeInsets.all(16.w),
@@ -517,6 +518,7 @@ class _RoyalPageState extends State<RoyalPage> with TickerProviderStateMixin {
                                             },
                                             title: 'Pay Now',
                                           ),
+
                                         SizedBox(height: 24.h),
                                       ],
                                     );

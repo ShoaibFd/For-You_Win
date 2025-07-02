@@ -88,7 +88,10 @@ class _MegaPageState extends State<MegaPage> with TickerProviderStateMixin {
   }
 
   Future<void> handlePayment(TicketServices ticket, Map<String, dynamic> matchedTicket) async {
-    // Prepare invoice data
+    final ticketId = matchedTicket['id'];
+    await ticket.payTicket(ticketId, matchedTicket['raffle_draw_prize'].toString());
+    log('Ticket Id in MegaPage: $ticketId');
+
     invoiceData = {
       'ticket': matchedTicket,
       'orderNumber': ticket.megaTicketData!['order_number'],
@@ -96,19 +99,12 @@ class _MegaPageState extends State<MegaPage> with TickerProviderStateMixin {
       'hasWinners': ticket.megaTicketData!['hasWinners'],
     };
 
-    // Show invoice animation
     showInvoiceAnimation();
-
-    // Start printing process
     await handlePrint(matchedTicket);
 
-    // Mark ticket as paid
     setState(() {
-      paidTicketId = matchedTicket['id'].toString(); // Using 'id' as per API data
+      paidTicketId = matchedTicket['id'].toString();
     });
-
-    // Process payment through ticket service, converting matched_price to String
-    await ticket.payTicket(ticket.megaTicketData!['order_number'], matchedTicket['raffle_draw_prize'].toString());
   }
 
   Future<void> handlePrint(Map<String, dynamic> matchedTicket) async {
@@ -419,7 +415,7 @@ class _MegaPageState extends State<MegaPage> with TickerProviderStateMixin {
                           ),
                           filled: true,
                           fillColor: primaryColor,
-                          hintText: 'Enter Ticket Number or Order Number',
+                          hintText: 'Enter Order Number',
                           hintStyle: TextStyle(fontSize: 11.sp),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.r),
@@ -466,12 +462,13 @@ class _MegaPageState extends State<MegaPage> with TickerProviderStateMixin {
                                       MapEntry('Candidate', matched['candidate']['name'].toString()),
                                       MapEntry('Ticket ID', ticketId),
                                       MapEntry('Product', matched['product_name'].toString()),
+                                      MapEntry('Status', matched['order_status'] == 1 ? 'Paid' : 'Unpaid'),
                                       MapEntry('Order Number', ticket.megaTicketData!['order_number'].toString()),
                                       MapEntry('Winning Numbers', matched['numbers']?.toString() ?? ''),
                                       MapEntry('Matched Numbers', matched['matched_numbers']?.toString() ?? ''),
-                                      MapEntry('Prize', matched['raffle_draw_prize'].toString()),
-                                      MapEntry('Status', matched['order_status'].toString()),
-                                      MapEntry('Total Prize', ticket.megaTicketData!['totalPrize'].toString()),
+                                      MapEntry('Raffle Draw Prize', matched['raffle_draw_prize'].toString()),
+
+                                      MapEntry('Matched Prize', ticket.megaTicketData!['totalPrize'].toString()),
                                       MapEntry('Straight', matched['straight'].toString()),
                                       MapEntry('Rumble', matched['rumble'].toString()),
                                       MapEntry('Chance', matched['chance'].toString()),
@@ -506,7 +503,9 @@ class _MegaPageState extends State<MegaPage> with TickerProviderStateMixin {
                                         SizedBox(height: 16.h),
 
                                         // Pay Now Button or Paid Status
-                                        if (isPaid)
+                                        if (isPaid ||
+                                            matched['order_status']?.toString().toLowerCase() == '1' ||
+                                            matched['payment_status']?.toString().toLowerCase() == 'completed')
                                           Container(
                                             width: double.infinity,
                                             padding: EdgeInsets.all(16.w),

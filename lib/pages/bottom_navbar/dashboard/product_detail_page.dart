@@ -46,7 +46,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
     }
 
-   
     if (value is String && value.contains('T')) {
       try {
         final date = DateTime.parse(value);
@@ -201,20 +200,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   Widget ticketTable(dynamic ticket) {
     final isAnnounced = ticket.isAnnounced == true;
-    final isPurchased = ticket.orderStatus == true;
+    final isPaid = ticket.orderStatus == 1;
 
     final List<MapEntry<String, Widget>> rows = [
       MapEntry('Order Number', AppText(_safeToString(ticket.orderNumber))),
       MapEntry('Order Date', AppText(_safeToString(ticket.orderDate))),
       MapEntry('Draw Date', AppText(_safeToString(ticket.drawDate))),
-      MapEntry(
-        'Status',
-        AppText(
-          isPurchased ? 'Purchased' : 'Not Purchased',
-          color: isPurchased ? Colors.blue : secondaryColor,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      MapEntry('Status', AppText(isPaid ? 'Paid' : 'Purchased', color: isPaid ? Colors.blue : secondaryColor)),
       MapEntry('Prize', AppText(_safeToString(ticket.raffleDrawPrize))),
       MapEntry('Numbers', AppText(_safeToString(ticket.numbers))),
       MapEntry('Straight', AppText(_safeToString(ticket.straight))),
@@ -222,11 +214,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       MapEntry('Chance', AppText(_safeToString(ticket.chance))),
       MapEntry(
         'Ticket Announced',
-        AppText(
-          isAnnounced ? 'Announced' : 'Not Announced',
-          color: isAnnounced ? Colors.blue : secondaryColor,
-          fontWeight: FontWeight.bold,
-        ),
+        AppText(isAnnounced ? 'Announced' : 'Not Announced', color: isAnnounced ? Colors.blue : secondaryColor),
       ),
     ];
 

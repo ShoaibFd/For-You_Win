@@ -89,27 +89,37 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
   }
 
   Future<void> handlePayment(TicketServices ticket, Map<String, dynamic> matchedTicket) async {
-    // Prepare invoice data
-    invoiceData = {
-      'ticket': matchedTicket,
-      'orderNumber': ticket.foryouTicketData!['order_number'],
-      'status': ticket.foryouTicketData!['status'],
-      'hasWinners': ticket.foryouTicketData!['has_winners'],
-    };
+    try {
+      invoiceData = {
+        'ticket': matchedTicket,
+        'orderNumber': ticket.foryouTicketData!['order_number'],
+        'status': ticket.foryouTicketData!['status'],
+        'hasWinners': ticket.foryouTicketData!['has_winners'],
+      };
 
-    // Show invoice animation
-    showInvoiceAnimation();
+      showInvoiceAnimation();
+      await handlePrint(matchedTicket);
 
-    // Start printing process
-    await handlePrint(matchedTicket);
+      final ticketId = ticket.foryouTicketData!['tickets']['id'];
+      await ticket.payTicket(ticketId, matchedTicket['matched_price'].toString());
+      log('Ticket Id in ForYouPage: $ticketId');
 
-    // Mark ticket as paid
-    setState(() {
-      paidTicketId = matchedTicket['ticket_id'].toString();
-    });
+      setState(() {
+        paidTicketId = matchedTicket['ticket_id'].toString();
+      });
 
-    // Process payment through ticket service, converting matched_price to String
-    await ticket.payTicket(ticket.foryouTicketData!['order_number'], matchedTicket['matched_price'].toString());
+      final currentOrderNumber = ticket.foryouTicketData!['order_number'];
+      await ticket.forYouTicketSearch(currentOrderNumber);
+
+      if (mounted) {
+        AppSnackbar.showSuccessSnackbar('Payment completed successfully!');
+      }
+    } catch (e) {
+      log('Error processing payment: $e');
+      if (mounted) {
+        AppSnackbar.showErrorSnackbar('Payment failed: $e');
+      }
+    }
   }
 
   Future<void> handlePrint(Map<String, dynamic> matchedTicket) async {
@@ -140,7 +150,6 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
         setState(() {
           isPrinting = false;
         });
-        // Hide invoice after printing
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
             hideInvoice();
@@ -148,10 +157,6 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
         });
       }
     }
-  }
-
-  String generateQRData(Map<String, dynamic> matchedTicket) {
-    return 'TicketID:${matchedTicket['ticket_id']}|Product:${matchedTicket['product_name']}|DrawDate:${matchedTicket['draw_date']}|Prize:${matchedTicket['matched_price']}';
   }
 
   pw.Widget invoiceRow(String title, String value, {bool bold = false, double fontSize = 14}) {
@@ -214,11 +219,12 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
     final bytes = await rootBundle.load('assets/images/logo.png');
     final image = pw.MemoryImage(bytes.buffer.asUint8List());
 
-    // Convert numbers and matched_numbers from String to List if necessary
+    // Convert numbers and matched_numbers from String to List<int>
     List<dynamic> numbers =
         matchedTicket['numbers'] is String
             ? (matchedTicket['numbers'] as String).split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList()
             : (matchedTicket['numbers'] as List<dynamic>? ?? []);
+
     List<dynamic> matchedNumbers =
         matchedTicket['matched_numbers'] is String
             ? (matchedTicket['matched_numbers'] as String).split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList()
@@ -232,7 +238,7 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
         margin: const pw.EdgeInsets.all(32),
         build: (context) {
           return [
-            // Header
+            // Logo
             pw.Center(child: pw.Image(image, height: 60, width: 120)),
             pw.SizedBox(height: 20),
 
@@ -258,12 +264,12 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
               width: double.infinity,
               child: pw.Column(
                 children: [
-                  invoiceRow('Ticket ID:', matchedTicket['ticket_id'].toString(), fontSize: 14),
-                  invoiceRow('Product Name:', matchedTicket['product_name'].toString(), fontSize: 14),
-                  invoiceRow('Candidate:', matchedTicket['candidate'].toString(), fontSize: 14),
-                  invoiceRow('Order Date:', matchedTicket['order_date'].toString(), fontSize: 14),
-                  invoiceRow('Draw Date:', matchedTicket['draw_date'].toString(), fontSize: 14),
+                  invoiceRow('Ticket ID:', matchedTicket['id'].toString()),
+                  invoiceRow('Product Name:', matchedTicket['product_name']),
+                  invoiceRow('Candidate', matchedTicket['candidate'].toString()),
                   invoiceRow('Prize Amount:', 'AED ${matchedTicket['matched_price']}', bold: true, fontSize: 16),
+                  invoiceRow('Order Date:', matchedTicket['order_date'].toString()),
+                  invoiceRow('Draw Date:', matchedTicket['draw_date'].toString()),
                 ],
               ),
             ),
@@ -302,7 +308,7 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
             ),
             pw.SizedBox(height: 20),
 
-            // Congratulations message
+            // Congratulations message!!
             pw.Container(
               width: double.infinity,
               child: pw.Text(
@@ -312,25 +318,6 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
               ),
             ),
             pw.SizedBox(height: 20),
-
-            // QR Code
-            pw.Center(
-              child: pw.Column(
-                children: [
-                  pw.BarcodeWidget(
-                    barcode: pw.Barcode.qrCode(),
-                    data: generateQRData(matchedTicket),
-                    width: 120,
-                    height: 120,
-                  ),
-                  pw.SizedBox(height: 8),
-                  pw.Text(
-                    matchedTicket['ticket_id'].toString(),
-                    style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
           ];
         },
         footer:
@@ -402,7 +389,6 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
                               if (order.isNotEmpty) {
                                 ticket.forYouTicketSearch(order);
                                 log('Order number: $order');
-                                // Reset paid ticket when searching new ticket
                                 setState(() {
                                   paidTicketId = null;
                                 });
@@ -420,7 +406,7 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
                           ),
                           filled: true,
                           fillColor: primaryColor,
-                          hintText: 'Enter Ticket Number or Order Number',
+                          hintText: 'Enter Order Number',
                           hintStyle: TextStyle(fontSize: 11.sp),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.r),
@@ -447,37 +433,38 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
                               SizedBox(height: 10.h),
                               dataRow(
                                 'Status',
-                                ticket.foryouTicketData!['status'].toString(),
+                                ticket.foryouTicketData!['success'].toString(),
                                 valueColor: Colors.green,
                               ),
                               Divider(),
                               dataRow('Order Number', ticket.foryouTicketData!['order_number'].toString()),
                               Divider(),
-                              dataRow('Has Winners', ticket.foryouTicketData!['has_winners'].toString()),
+                              dataRow('Has Winners', ticket.foryouTicketData!['hasWinners'].toString()),
 
                               SizedBox(height: 20.h),
                               AppText('Matched Tickets:', fontSize: 18.sp),
                               SizedBox(height: 10.h),
 
-                              ...ticket.foryouTicketData!['tickets']?.map<Widget>((matched) {
+                              ...ticket.foryouTicketData!['validTickets']?.map<Widget>((matched) {
                                     final ticketId = matched['id'].toString();
-                                    final isPaid = paidTicketId == ticketId;
+                                    final isPaid = matched['paid_by'] != null;
 
                                     final rows = [
+                                      MapEntry('Candidate', matched['candidate']['name'].toString()),
                                       MapEntry('Ticket ID', matched['id'].toString()),
                                       MapEntry('Product', matched['product_name'].toString()),
                                       MapEntry('Order Number', matched['order_number'].toString()),
+                                      MapEntry('Status', matched['order_status'] == 1 ? 'Paid' : 'Unpaid'),
                                       MapEntry('Numbers', matched['numbers'].toString()),
                                       MapEntry('Matched Numbers', matched['matched_numbers'].toString()),
+                                      MapEntry('Raffle Draw Prize', matched['raffle_draw_prize'].toString()),
+                                      MapEntry('Matched Prize', matched['matched_price'].toString()),
                                       MapEntry('Straight', matched['straight'].toString()),
                                       MapEntry('Rumble', matched['rumble'].toString()),
                                       MapEntry('Chance', matched['chance'].toString()),
-                                      MapEntry('Prize Amount', matched['raffle_draw_prize'].toString()),
-                                      MapEntry('Candidate', matched['candidate']['name'].toString()),
                                       MapEntry('Draw Date', matched['draw_date'].toString()),
                                       MapEntry('Order Date', matched['order_date'].toString()),
                                     ];
-
                                     return Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
@@ -505,7 +492,9 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
                                         SizedBox(height: 16.h),
 
                                         // Pay Now Button or Paid Status
-                                        if (isPaid)
+                                        if (isPaid ||
+                                            matched['order_status']?.toString().toLowerCase() == '1' ||
+                                            matched['payment_status']?.toString().toLowerCase() == 'completed')
                                           Container(
                                             width: double.infinity,
                                             padding: EdgeInsets.all(16.w),
@@ -536,6 +525,7 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
                                             },
                                             title: 'Pay Now',
                                           ),
+
                                         SizedBox(height: 24.h),
                                       ],
                                     );
@@ -636,21 +626,52 @@ class _ForYouPageState extends State<ForYouPage> with TickerProviderStateMixin {
                                           ),
                                           child: Column(
                                             children: [
+                                              infoRow(
+                                                'Candidate:',
+                                                invoiceData!['ticket']['candidate']['name'].toString(),
+                                              ),
+                                              Divider(),
                                               infoRow('Ticket ID:', invoiceData!['ticket']['ticket_id'].toString()),
                                               Divider(),
                                               infoRow('Product:', invoiceData!['ticket']['product_name'].toString()),
+
                                               Divider(),
-                                              infoRow('Candidate:', invoiceData!['ticket']['candidate'].toString()),
+                                              infoRow('Status:', invoiceData!['ticket']['order_status'].toString()),
+
                                               Divider(),
-                                              infoRow('Order Date:', invoiceData!['ticket']['order_date'].toString()),
+                                              infoRow(
+                                                'Matched numbers:',
+                                                invoiceData!['ticket']['matched_numbers'].toString(),
+                                              ),
+
                                               Divider(),
-                                              infoRow('Draw Date:', invoiceData!['ticket']['draw_date'].toString()),
                                               Divider(),
                                               infoRow(
                                                 'Prize Amount:',
                                                 'AED ${invoiceData!['ticket']['matched_price']}',
                                                 isHighlighted: true,
                                               ),
+                                              Divider(),
+                                              infoRow(
+                                                'Straight:',
+                                                '${invoiceData!['ticket']['straight']}',
+                                                isHighlighted: true,
+                                              ),
+                                              Divider(),
+                                              infoRow(
+                                                'Rumble:',
+                                                '${invoiceData!['ticket']['rumble']}',
+                                                isHighlighted: true,
+                                              ),
+                                              Divider(),
+                                              infoRow(
+                                                'Chance:',
+                                                '${invoiceData!['ticket']['chance']}',
+                                                isHighlighted: true,
+                                              ),
+                                              infoRow('Order Date:', invoiceData!['ticket']['order_date'].toString()),
+                                              Divider(),
+                                              infoRow('Draw Date:', invoiceData!['ticket']['draw_date'].toString()),
                                             ],
                                           ),
                                         ),

@@ -11,7 +11,7 @@ class QuantityProvider extends ChangeNotifier {
   }
 
   void increase(int index) {
-    if (index < _quantities.length && _quantities[index] < 10) {
+    if (index < _quantities.length && _quantities[index] < 15) {
       _quantities[index]++;
       notifyListeners();
     }
@@ -29,23 +29,20 @@ class QuantityProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Optional: Clear all quantities (useful for complete reset)
   void clear() {
     _quantities.clear();
     notifyListeners();
   }
 
-  // Optional: Get quantity for specific index safely
   int getQuantity(int index) {
     if (index < _quantities.length) {
       return _quantities[index];
     }
-    return 1; // Default quantity
+    return 1;
   }
 
-  // Optional: Set quantity for specific index
   void setQuantity(int index, int quantity) {
-    if (index < _quantities.length && quantity >= 1 && quantity <= 10) {
+    if (index < _quantities.length && quantity >= 1 && quantity <= 15) {
       _quantities[index] = quantity;
       notifyListeners();
     }

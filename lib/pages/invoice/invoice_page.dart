@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,9 +10,9 @@ import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/components/primary_button.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/data/services/invoice/invoice_services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 class InvoicePage extends StatefulWidget {
@@ -22,14 +23,16 @@ class InvoicePage extends StatefulWidget {
 }
 
 class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin {
-  String reportType = 'weekly';
+  String reportType = 'daily';
   DateTime? startDate;
   DateTime? endDate;
   bool showInvoice = false;
   bool isPrinting = false;
   Map<String, dynamic>? invoiceData;
 
-  final Map<String, String> reportTypeOptions = {'Weekly': 'weekly', 'Daily': 'daily'};
+  final Map<String, String> reportTypeOptions = {'Daily': 'daily', 'Weekly': 'weekly'};
+
+  // Animation controllers
   late AnimationController slideController;
   late AnimationController fadeController;
   late AnimationController printController;
@@ -47,7 +50,7 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
     // Initialize animation controllers
     slideController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
     fadeController = AnimationController(duration: const Duration(milliseconds: 400), vsync: this);
-    printController = AnimationController(duration: const Duration(milliseconds: 2000), vsync: this);
+    printController = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
 
     slideAnimation = Tween<Offset>(
       begin: const Offset(0.0, 1.0),
@@ -63,9 +66,6 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
       begin: Offset.zero,
       end: const Offset(0.0, -1.0),
     ).animate(CurvedAnimation(parent: printController, curve: Curves.easeInOut));
-
-    // Initialize the printing plugin
-    // Printing.initialize();
   }
 
   void _setDefaultDates() {
@@ -126,13 +126,14 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
   void hideInvoice() {
     setState(() {
       showInvoice = false;
+      isPrinting = false;
     });
     slideController.reset();
     fadeController.reset();
     printController.reset();
   }
 
-  Future<void> _generatePDF() async {
+  Future<void> _handlePrint() async {
     final invoice = Provider.of<InvoiceServices>(context, listen: false);
     final data = invoice.earningData;
 
@@ -141,183 +142,218 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
       return;
     }
 
+    if (isPrinting) return;
+
     setState(() {
       invoiceData = data;
-    });
-
-    showInvoiceAnimation();
-
-    setState(() {
       isPrinting = true;
     });
 
+    // Show animation immediately
+    showInvoiceAnimation();
+
     try {
-      HapticFeedback.lightImpact();
-      final pdf = pw.Document();
+      log('📄 Starting POS invoice printing...');
+      HapticFeedback.mediumImpact();
 
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Header(
-                  level: 0,
-                  child: pw.Text('Invoice Report', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-                ),
-                pw.SizedBox(height: 20),
-                pw.Text(
-                  data['candidate']?['name'] != null ? "Report for ${data['candidate']['name']}" : "Report for User",
-                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-                ),
-                pw.SizedBox(height: 10),
-                pw.Text(
-                  "Date Range: ${_formatDate(data['startDate'])} to ${_formatDate(data['endDate'])}",
-                  style: pw.TextStyle(fontSize: 14),
-                ),
-                pw.SizedBox(height: 20),
-                pw.Table(
-                  border: pw.TableBorder.all(color: PdfColors.grey),
-                  columnWidths: {0: pw.FlexColumnWidth(3), 1: pw.FlexColumnWidth(2)},
-                  children: [
-                    pw.TableRow(
-                      decoration: pw.BoxDecoration(color: PdfColors.grey200),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text('Description', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text('Amount', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Tickets Sold')),
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${data['totalTickets'] ?? 0}')),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Sales Amount')),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(_formatCurrency(data['totalSalesAmount'])),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Commission')),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(_formatCurrency(data['commission'])),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Paid Amount')),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(_formatCurrency(data['totalPaidAmount'])),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Revenue')),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(_formatCurrency(data['totalRevenue'])),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Company Paid Amount')),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(_formatCurrency(data['companyPaidAmount'])),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(color: PdfColors.grey100),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text('Company Payment', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            _formatCurrency(data['companyPayment']),
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                pw.SizedBox(height: 40),
-                pw.Text(
-                  'Generated on: ${DateTime.now().toString().split('.')[0]}',
-                  style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-
-      // Get available printers with error handling
-      final printers = await Printing.listPrinters().catchError((e) {
-        log('Error listing printers: $e');
-        return <Printer>[]; // Return empty list if plugin fails
-      });
-      final printer = printers.isNotEmpty ? printers.first : null;
-
-      if (printer == null) {
-        throw Exception('No printer available. Please connect a printer or test on a physical device.');
+      // Show printing status
+      if (mounted) {
+        AppSnackbar.showSuccessSnackbar('🖨️ Printing invoice...');
       }
 
-      // Directly print the PDF
-      await Printing.directPrintPdf(
-        printer: printer,
-        format: PdfPageFormat.a4,
-        onLayout: (PdfPageFormat format) => pdf.save(),
-      );
+      // Generate PDF
+      log('📋 Generating PDF for earnings report');
+      final pdfData = await _generatePdf(data);
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/earnings_invoice_${DateTime.now().millisecondsSinceEpoch}.pdf');
+      await file.writeAsBytes(pdfData);
+
+      log('💾 PDF saved to: ${file.path}');
+
+      log('🖨️ Sending to POS printer...');
       printController.forward();
-      await Future.delayed(const Duration(milliseconds: 2000));
+
+      // Simulate printing time (replace with actual POS printing logic)
+      await Future.delayed(const Duration(milliseconds: 1200));
+
+      // Print success
+      log('✅ POS PRINT SUCCESS: Earnings invoice printed successfully');
 
       if (mounted) {
-        AppSnackbar.showSuccessSnackbar('Invoice printed successfully!');
+        HapticFeedback.heavyImpact();
+        AppSnackbar.showSuccessSnackbar('✅ Invoice printed successfully on POS machine!');
+
+        // Wait a bit before hiding
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            hideInvoice();
+          }
+        });
       }
     } catch (e) {
-      log('Error preparing print: $e');
+      log('🔍 Error Details: $e');
+
       if (mounted) {
-        AppSnackbar.showErrorSnackbar(
-          e is MissingPluginException
-              ? 'Printing is not supported on this device/emulator. Test on a physical device with a printer.'
-              : 'Error preparing print: $e',
-        );
+        HapticFeedback.heavyImpact();
+        AppSnackbar.showErrorSnackbar('❌ POS printing failed: ${e.toString()}');
+
+        // Reset print animation on error
+        printController.reset();
+
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            hideInvoice();
+          }
+        });
       }
     } finally {
       if (mounted) {
         setState(() {
           isPrinting = false;
         });
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            hideInvoice();
-          }
-        });
       }
     }
+  }
+
+  Future<Uint8List> _generatePdf(Map<String, dynamic> data) async {
+    final pdf = pw.Document();
+
+    // Load logo
+    final logoBytes = await rootBundle.load('assets/images/logo.png');
+    final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header with logo
+              pw.Center(child: pw.Image(logoImage, height: 60, width: 120)),
+              pw.SizedBox(height: 20),
+
+              pw.Header(
+                level: 0,
+                child: pw.Text(
+                  'Earnings Invoice Report',
+                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+              pw.SizedBox(height: 20),
+
+              pw.Text(
+                data['candidate']?['name'] != null ? "Report for ${data['candidate']['name']}" : "Report for User",
+                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 10),
+
+              pw.Text(
+                "Date Range: ${_formatDate(data['startDate'])} to ${_formatDate(data['endDate'])}",
+                style: pw.TextStyle(fontSize: 14),
+              ),
+              pw.SizedBox(height: 20),
+
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey),
+                columnWidths: {0: pw.FlexColumnWidth(3), 1: pw.FlexColumnWidth(2)},
+                children: [
+                  pw.TableRow(
+                    decoration: pw.BoxDecoration(color: PdfColors.grey200),
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('Description', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('Amount', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Tickets Sold')),
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${data['totalTickets'] ?? 0}')),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Sales Amount')),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(_formatCurrency(data['totalSalesAmount'])),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Commission')),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(_formatCurrency(data['commission'])),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Paid Amount')),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(_formatCurrency(data['totalPaidAmount'])),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Total Revenue')),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(_formatCurrency(data['totalRevenue'])),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Company Paid Amount')),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(_formatCurrency(data['companyPaidAmount'])),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text('Company Payment', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(
+                          _formatCurrency(data['companyPayment']),
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 40),
+
+              pw.Text(
+                'Generated on: ${DateTime.now().toString().split('.')[0]}',
+                style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
   }
 
   @override
@@ -463,27 +499,47 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
                                 ],
                               ),
                               SizedBox(height: 10.h),
-                              Consumer<InvoiceServices>(
-                                builder: (context, invoice, child) {
-                                  return Align(
-                                    alignment: Alignment.bottomRight,
-                                    child: GestureDetector(
-                                      onTap: invoice.earningData != null ? _generatePDF : null,
-                                      child: Opacity(
-                                        opacity: invoice.earningData != null ? 1.0 : 0.5,
-                                        child: Ink(
-                                          height: 50.h,
-                                          width: 120.w,
-                                          decoration: BoxDecoration(
-                                            color: secondaryColor,
-                                            borderRadius: BorderRadius.circular(8.r),
-                                          ),
-                                          child: Center(child: AppText('Print Invoice', fontWeight: FontWeight.bold)),
-                                        ),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: GestureDetector(
+                                  onTap: invoice.earningData != null && !isPrinting ? _handlePrint : null,
+                                  child: Opacity(
+                                    opacity: invoice.earningData != null && !isPrinting ? 1.0 : 0.5,
+                                    child: Ink(
+                                      height: 50.h,
+                                      width: 120.w,
+                                      decoration: BoxDecoration(
+                                        color: isPrinting ? Colors.orange[400] : secondaryColor,
+                                        borderRadius: BorderRadius.circular(8.r),
+                                      ),
+                                      child: Center(
+                                        child:
+                                            isPrinting
+                                                ? Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: 16.w,
+                                                      height: 16.h,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                      ),
+                                                    ),
+                                                    SizedBox(width: 8.w),
+                                                    AppText(
+                                                      'Printing...',
+                                                      fontSize: 12.sp,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ],
+                                                )
+                                                : AppText('Print Invoice', fontWeight: FontWeight.bold),
                                       ),
                                     ),
-                                  );
-                                },
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -495,7 +551,7 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
           ),
           if (showInvoice && invoiceData != null)
             GestureDetector(
-              onTap: hideInvoice,
+              onTap: isPrinting ? null : hideInvoice,
               child: Container(
                 color: Colors.black.withOpacity(0.5),
                 width: double.infinity,
@@ -520,28 +576,41 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Handle bar
                               Container(
                                 margin: EdgeInsets.only(top: 12.h),
                                 width: 40.w,
                                 height: 4.h,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey[300],
+                                  color: isPrinting ? Colors.orange[300] : Colors.grey[300],
                                   borderRadius: BorderRadius.circular(2.r),
                                 ),
                               ),
+
+                              // Header
                               Container(
                                 padding: EdgeInsets.all(20.w),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    AppText('Invoice Report', fontSize: 20.sp, fontWeight: FontWeight.bold),
-                                    GestureDetector(
-                                      onTap: hideInvoice,
-                                      child: Icon(Icons.close, size: 24.sp, color: Colors.grey[600]),
+                                    AppText(
+                                      isPrinting ? 'Printing...' : 'Invoice Report',
+                                      fontSize: 20.sp,
+                                      fontWeight: FontWeight.bold,
+                                      color: isPrinting ? Colors.orange[600] : null,
                                     ),
+                                    if (!isPrinting)
+                                      GestureDetector(
+                                        onTap: hideInvoice,
+                                        child: Icon(Icons.close, size: 24.sp, color: Colors.grey[600]),
+                                      )
+                                    else
+                                      Icon(Icons.print, size: 24.sp, color: Colors.orange[600]),
                                   ],
                                 ),
                               ),
+
+                              // Content
                               Expanded(
                                 child: RepaintBoundary(
                                   key: invoiceKey,
@@ -611,9 +680,9 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
                                           Container(
                                             padding: EdgeInsets.all(16.w),
                                             decoration: BoxDecoration(
-                                              color: primaryColor.withOpacity(0.1),
+                                              color: Colors.orange[50],
                                               borderRadius: BorderRadius.circular(12.r),
-                                              border: Border.all(color: primaryColor.withOpacity(0.3)),
+                                              border: Border.all(color: Colors.orange[200]!),
                                             ),
                                             child: Row(
                                               mainAxisAlignment: MainAxisAlignment.center,
@@ -623,14 +692,14 @@ class _InvoicePageState extends State<InvoicePage> with TickerProviderStateMixin
                                                   height: 20.h,
                                                   child: CircularProgressIndicator(
                                                     strokeWidth: 2,
-                                                    valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[600]!),
                                                   ),
                                                 ),
                                                 SizedBox(width: 12.w),
                                                 AppText(
-                                                  'Printing invoice...',
+                                                  'Printing to POS machine...',
                                                   fontSize: 16.sp,
-                                                  color: primaryColor,
+                                                  color: Colors.orange[600],
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                               ],

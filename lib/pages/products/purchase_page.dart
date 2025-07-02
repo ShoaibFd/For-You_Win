@@ -95,17 +95,50 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
 
     setState(() {
       if (numberOfField == 6) {
-        // For 6 fields: generate unique numbers between 1-25, format with leading zeros
+        // For 6 fields: generate unique numbers between 1-25, format as 2 digits
+        // Also ensure this combination doesn't exist in other tickets
         List<int> availableNumbers = List.generate(25, (index) => index + 1);
-        availableNumbers.shuffle(random);
+        List<int> selectedNumbers = [];
 
+        // Try to generate a unique combination
+        int attempts = 0;
+        while (attempts < 100) {
+          // Prevent infinite loop
+          availableNumbers.shuffle(random);
+          selectedNumbers = availableNumbers.take(numberOfField).toList();
+          selectedNumbers.sort(); // Sort for comparison
+
+          if (!_isTicketCombinationDuplicate(ticketIndex, selectedNumbers)) {
+            break;
+          }
+          attempts++;
+        }
+
+        // Fill the controllers with the selected numbers
         for (int i = 0; i < allTicketControllers[ticketIndex].length && i < numberOfField; i++) {
-          allTicketControllers[ticketIndex][i].text = availableNumbers[i].toString().padLeft(2, '0');
+          allTicketControllers[ticketIndex][i].text = selectedNumbers[i].toString().padLeft(2, '0');
         }
       } else {
         // For other fields: generate single digits (1-9, no zero)
+        // Also ensure this combination doesn't exist in other tickets
+        List<int> selectedNumbers = [];
+        int attempts = 0;
+
+        while (attempts < 100) {
+          // Prevent infinite loop
+          selectedNumbers.clear();
+          for (int i = 0; i < numberOfField; i++) {
+            selectedNumbers.add(random.nextInt(9) + 1);
+          }
+
+          if (!_isTicketCombinationDuplicate(ticketIndex, selectedNumbers)) {
+            break;
+          }
+          attempts++;
+        }
+
         for (int i = 0; i < allTicketControllers[ticketIndex].length && i < numberOfField; i++) {
-          allTicketControllers[ticketIndex][i].text = (random.nextInt(9) + 1).toString();
+          allTicketControllers[ticketIndex][i].text = selectedNumbers[i].toString();
         }
       }
     });
@@ -124,6 +157,92 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
     return filledValues.length == filledValues.toSet().length;
   }
 
+  // New helper function to validate 2-digit numbers
+  bool _hasValidTwoDigitNumbers(int ticketIndex, int numberOfField) {
+    if (numberOfField != 6) return true;
+
+    for (int i = 0; i < numberOfField; i++) {
+      final text = allTicketControllers[ticketIndex][i].text.trim();
+      if (text.isEmpty || text.length != 2) {
+        return false;
+      }
+      final num = int.tryParse(text);
+      if (num == null || num < 1 || num > 25) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // New function to check if a ticket combination is duplicate
+  bool _isTicketCombinationDuplicate(int currentTicketIndex, List<int> numbersToCheck) {
+    final provider = context.read<ProductsServices>();
+    final numberOfField = provider.productsDetailData?.data?.numberOfCircles ?? 0;
+
+    for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
+      if (ticketIndex == currentTicketIndex) continue; // Skip current ticket
+
+      // Get numbers from other ticket
+      List<int> otherTicketNumbers = [];
+      bool allFieldsFilled = true;
+
+      for (int i = 0; i < numberOfField; i++) {
+        if (i >= allTicketControllers[ticketIndex].length) {
+          allFieldsFilled = false;
+          break;
+        }
+        final text = allTicketControllers[ticketIndex][i].text.trim();
+        if (text.isEmpty) {
+          allFieldsFilled = false;
+          break;
+        }
+        final num = int.tryParse(text);
+        if (num == null) {
+          allFieldsFilled = false;
+          break;
+        }
+        otherTicketNumbers.add(num);
+      }
+
+      if (!allFieldsFilled) continue;
+
+      // Sort both lists for comparison
+      List<int> sortedCurrent = List.from(numbersToCheck)..sort();
+      List<int> sortedOther = List.from(otherTicketNumbers)..sort();
+
+      // Check if they are identical
+      if (sortedCurrent.length == sortedOther.length) {
+        bool identical = true;
+        for (int i = 0; i < sortedCurrent.length; i++) {
+          if (sortedCurrent[i] != sortedOther[i]) {
+            identical = false;
+            break;
+          }
+        }
+        if (identical) {
+          return true; // Duplicate found
+        }
+      }
+    }
+    return false; // No duplicate found
+  }
+
+  // New function to check if current ticket has duplicate numbers with other tickets
+  bool _hasTicketDuplicates(int ticketIndex, int numberOfField) {
+    // Get current ticket numbers
+    List<int> currentNumbers = [];
+    for (int i = 0; i < numberOfField; i++) {
+      if (i >= allTicketControllers[ticketIndex].length) return false;
+      final text = allTicketControllers[ticketIndex][i].text.trim();
+      if (text.isEmpty) return false;
+      final num = int.tryParse(text);
+      if (num == null) return false;
+      currentNumbers.add(num);
+    }
+
+    return _isTicketCombinationDuplicate(ticketIndex, currentNumbers);
+  }
+
   int getSelectedCheckboxCount(int ticketIndex) {
     int count = 0;
     allTicketGameTypes[ticketIndex].forEach((key, value) {
@@ -135,14 +254,14 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
   // Fixed function to collect game types with proper formatting
   List<String> getSelectedGameTypes(int ticketIndex) {
     List<String> selectedGameTypes = [];
-    
+
     allTicketGameTypes[ticketIndex].forEach((gameType, isSelected) {
       if (isSelected) {
         // Convert to uppercase format expected by API
         selectedGameTypes.add(gameType.toUpperCase());
       }
     });
-    
+
     return selectedGameTypes;
   }
 
@@ -184,26 +303,42 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
     return totalVAT;
   }
 
-  // Fixed validation function
+  // Updated validation function
   bool _validateTicket(int ticketIndex, int numberOfField) {
     // Check if all number fields are filled
     for (int i = 0; i < numberOfField; i++) {
-      if (i >= allTicketControllers[ticketIndex].length || 
-          allTicketControllers[ticketIndex][i].text.isEmpty) {
+      if (i >= allTicketControllers[ticketIndex].length || allTicketControllers[ticketIndex][i].text.trim().isEmpty) {
         return false;
       }
     }
 
-    // For 6-field games, check unique numbers
+    // For 6-field games, check 2-digit requirement and unique numbers
     if (numberOfField == 6) {
-      return _hasUniqueNumbers(ticketIndex, numberOfField);
+      if (!_hasValidTwoDigitNumbers(ticketIndex, numberOfField)) {
+        return false;
+      }
+      if (!_hasUniqueNumbers(ticketIndex, numberOfField)) {
+        return false;
+      }
+      // Check for duplicate tickets
+      if (_hasTicketDuplicates(ticketIndex, numberOfField)) {
+        return false;
+      }
+    } else {
+      // For other games, check if at least one game type is selected
+      if (getSelectedCheckboxCount(ticketIndex) == 0) {
+        return false;
+      }
+      // Check for duplicate tickets
+      if (_hasTicketDuplicates(ticketIndex, numberOfField)) {
+        return false;
+      }
     }
 
-    // For other games, check if at least one game type is selected
-    return getSelectedCheckboxCount(ticketIndex) > 0;
+    return true;
   }
 
-  // Fixed purchase function
+  // Updated purchase function
   Future<void> _handlePurchase() async {
     final provider = context.read<ProductsServices>();
     final data = provider.productsDetailData?.data;
@@ -216,21 +351,29 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
     for (int ticketIndex = 0; ticketIndex < widget.quantity; ticketIndex++) {
       if (!_validateTicket(ticketIndex, numberOfField)) {
         String errorMessage;
-        
+
         if (numberOfField == 6) {
-          if (!_hasUniqueNumbers(ticketIndex, numberOfField)) {
+          if (!_hasValidTwoDigitNumbers(ticketIndex, numberOfField)) {
+            errorMessage = 'Please enter exactly 2 digits (01-25) in each field for Ticket #${ticketIndex + 1}';
+          } else if (!_hasUniqueNumbers(ticketIndex, numberOfField)) {
             errorMessage = 'Please ensure all numbers are unique for Ticket #${ticketIndex + 1}';
+          } else if (_hasTicketDuplicates(ticketIndex, numberOfField)) {
+            errorMessage =
+                'Ticket #${ticketIndex + 1} has the same numbers as another ticket. Please choose different numbers.';
           } else {
             errorMessage = 'Please fill all number fields for Ticket #${ticketIndex + 1}';
           }
         } else {
           if (getSelectedCheckboxCount(ticketIndex) == 0) {
             errorMessage = 'Please select at least one game type for Ticket #${ticketIndex + 1}';
+          } else if (_hasTicketDuplicates(ticketIndex, numberOfField)) {
+            errorMessage =
+                'Ticket #${ticketIndex + 1} has the same numbers as another ticket. Please choose different numbers.';
           } else {
             errorMessage = 'Please fill all number fields for Ticket #${ticketIndex + 1}';
           }
         }
-        
+
         AppSnackbar.showInfoSnackbar(errorMessage);
         return;
       }
@@ -246,7 +389,6 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
         }
       }
 
-      
       List<String> selectedGameTypes = [];
       if (numberOfField != 6) {
         selectedGameTypes = getSelectedGameTypes(ticketIndex);
@@ -287,7 +429,7 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); 
+    super.build(context);
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -296,15 +438,14 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
         padding: EdgeInsets.all(16.w),
         child: Consumer<ProductsServices>(
           builder: (context, product, child) {
-            // Show loading only on initial load
-            if (product.isLoading && !_dataFetched) {
+            final data = product.productsDetailData?.data;
+            if (product.isLoading || data == null) {
               return const Center(child: AppLoading());
             }
 
-            final data = product.productsDetailData?.data;
-            final numberOfField = data?.numberOfCircles ?? 0;
-            final price = data?.product?.price;
-            final vat = data?.product?.vat;
+            final numberOfField = data.numberOfCircles ?? 0;
+            final price = data.product?.price;
+            final vat = data.product?.vat;
 
             final double priceValue = double.tryParse(price ?? '0') ?? 0.0;
             final double vatValue = double.tryParse(vat ?? '0') ?? 0.0;
@@ -318,13 +459,8 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
             }
 
             // Ensure controllers are initialized when data is loaded
-            if (allTicketControllers.isEmpty && data != null) {
+            if (allTicketControllers.isEmpty) {
               _initializeControllers();
-            }
-
-            // Show loading if data is still null but we haven't fetched yet
-            if (data == null) {
-              return const Center(child: AppLoading());
             }
 
             return SingleChildScrollView(
@@ -354,10 +490,18 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
 
                   // Generate ticket containers based on quantity
                   ...List.generate(widget.quantity, (ticketIndex) {
+                    bool hasDuplicates = _hasTicketDuplicates(ticketIndex, numberOfField);
+                    bool hasUniqueNumbers = _hasUniqueNumbers(ticketIndex, numberOfField);
+                    bool hasValidTwoDigitNumbers = _hasValidTwoDigitNumbers(ticketIndex, numberOfField);
+
                     return Container(
                       margin: EdgeInsets.only(bottom: 16.h),
                       padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 10.w),
-                      decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(16.r)),
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        borderRadius: BorderRadius.circular(16.r),
+                        border: hasDuplicates ? Border.all(color: Colors.red, width: 2) : null,
+                      ),
                       child: Column(
                         children: [
                           Padding(
@@ -398,40 +542,77 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                                     FilteringTextInputFormatter.digitsOnly,
                                     TextInputFormatter.withFunction((oldValue, newValue) {
                                       if (newValue.text.isEmpty) return newValue;
+
+                                      // Only for 6-field tickets
                                       if (numberOfField == 6) {
-                                        // maxLength == 2
                                         if (newValue.text.length > 2) return oldValue;
-                                        // Allow 00-25
-                                        final num = int.tryParse(newValue.text);
-                                        if (num == null || num < 0 || num > 25) return oldValue;
-                                        return newValue;
-                                      } else {
-                                        // maxLength == 1
-                                        if (newValue.text.length > 1) return oldValue;
-                                        // Allow 0-9
-                                        final num = int.tryParse(newValue.text);
-                                        if (num == null || num < 0 || num > 9) return oldValue;
+
+                                        final currentText = newValue.text;
+                                        final parsed = int.tryParse(currentText);
+                                        if (parsed == null) return oldValue;
+
+                                        // Only check duplicates for full 2-digit numbers
+                                        if (currentText.length == 2) {
+                                          // Get all other values in this ticket
+                                          final otherValues =
+                                              allTicketControllers[ticketIndex]
+                                                  .asMap()
+                                                  .entries
+                                                  .where((entry) => entry.key != fieldIndex) // skip current field
+                                                  .map((entry) => entry.value.text.trim())
+                                                  .where((text) => text.length == 2)
+                                                  .toSet();
+
+                                          if (otherValues.contains(currentText)) {
+                                            // Duplicate found — block input
+                                            AppSnackbar.showInfoSnackbar("Duplicate number not allowed: $currentText");
+                                            return oldValue;
+                                          }
+
+                                          // Range check
+                                          if (parsed < 1 || parsed > 25) {
+                                            return oldValue;
+                                          }
+                                        }
+
                                         return newValue;
                                       }
+
+                                      // For other games
+                                      if (newValue.text.length > 1) return oldValue;
+                                      final num = int.tryParse(newValue.text);
+                                      if (num == null || num < 0 || num > 9) return oldValue;
+
+                                      return newValue;
                                     }),
                                   ],
                                   onChanged: (value) {
-                                    // Move focus to next field if maxLength reached
-                                    int maxLength = numberOfField == 6 ? 2 : 1;
-                                    if (value.length == maxLength) {
-                                      if (fieldIndex < numberOfField - 1) {
-                                        FocusScope.of(
-                                          context,
-                                        ).requestFocus(allTicketFocusNodes[ticketIndex][fieldIndex + 1]);
-                                      } else {
-                                        FocusScope.of(context).unfocus();
+                                    if (numberOfField == 6) {
+                                      // For 6-field games: only move focus when 2 digits are entered
+                                      if (value.length == 2) {
+                                        if (fieldIndex < numberOfField - 1) {
+                                          FocusScope.of(
+                                            context,
+                                          ).requestFocus(allTicketFocusNodes[ticketIndex][fieldIndex + 1]);
+                                        } else {
+                                          FocusScope.of(context).unfocus();
+                                        }
+                                      }
+                                    } else {
+                                      // For other games: move focus after 1 digit
+                                      if (value.length == 1) {
+                                        if (fieldIndex < numberOfField - 1) {
+                                          FocusScope.of(
+                                            context,
+                                          ).requestFocus(allTicketFocusNodes[ticketIndex][fieldIndex + 1]);
+                                        } else {
+                                          FocusScope.of(context).unfocus();
+                                        }
                                       }
                                     }
-                                    if (numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)) {
-                                      setState(() {});
-                                    } else {
-                                      setState(() {});
-                                    }
+
+                                    // Update UI state
+                                    setState(() {});
                                   },
                                   decoration: InputDecoration(
                                     counterText: "",
@@ -440,21 +621,24 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10.r),
                                       borderSide:
-                                          numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)
-                                              ? const BorderSide(color: Colors.red, width: 2)
+                                          (numberOfField == 6 && (!hasUniqueNumbers || !hasValidTwoDigitNumbers)) ||
+                                                  hasDuplicates
+                                              ? const BorderSide(color: Color.fromARGB(255, 146, 60, 53), width: 2)
                                               : BorderSide.none,
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10.r),
                                       borderSide:
-                                          numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)
+                                          (numberOfField == 6 && (!hasUniqueNumbers || !hasValidTwoDigitNumbers)) ||
+                                                  hasDuplicates
                                               ? const BorderSide(color: Colors.red, width: 2)
                                               : BorderSide.none,
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10.r),
                                       borderSide:
-                                          numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField)
+                                          (numberOfField == 6 && (!hasUniqueNumbers || !hasValidTwoDigitNumbers)) ||
+                                                  hasDuplicates
                                               ? const BorderSide(color: Colors.red, width: 2)
                                               : const BorderSide(color: Colors.blue, width: 2),
                                     ),
@@ -464,10 +648,18 @@ class _PurchasePageState extends State<PurchasePage> with AutomaticKeepAliveClie
                               );
                             }),
                           ),
-                          if (numberOfField == 6 && !_hasUniqueNumbers(ticketIndex, numberOfField))
+                          if ((numberOfField == 6 && (!hasUniqueNumbers || !hasValidTwoDigitNumbers)) || hasDuplicates)
                             Padding(
                               padding: EdgeInsets.only(top: 8.h),
-                              child: AppText("Numbers must be unique (01-25)", color: Colors.red, fontSize: 12.sp),
+                              child: AppText(
+                                hasDuplicates
+                                    ? "This ticket has the same numbers as another ticket"
+                                    : !hasValidTwoDigitNumbers
+                                    ? "Please enter 2 digits (01-25) in each field"
+                                    : "Numbers must be unique (01-25)",
+                                color: Colors.red,
+                                fontSize: 12.sp,
+                              ),
                             ),
                           SizedBox(height: 16.h),
                           numberOfField == 6
