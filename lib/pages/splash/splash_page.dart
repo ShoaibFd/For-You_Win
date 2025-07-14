@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/pages/auth/login_page.dart';
 import 'package:for_u_win/pages/bottom_navbar/bottom_navbar.dart';
+import 'package:for_u_win/pages/restriction/restriction_page.dart';
 import 'package:for_u_win/storage/shared_prefs.dart';
 import 'package:get/get.dart';
+import 'package:timezone/data/latest.dart' as tz;
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -19,23 +21,23 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    tz.initializeTimeZones();
 
-    // Animation controller!
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
 
-    // Delay for 2 seconds and then navigate to onboarding page!
-    Future.delayed(const Duration(seconds: 2), () {
-      _checkLoginStatus();
-    });
+    Future.delayed(const Duration(seconds: 2), _checkLoginStatus);
   }
 
   Future<void> _checkLoginStatus() async {
     final token = await _sharedPrefs.getToken();
+    Widget destination;
     if (token != null && token.isNotEmpty) {
-      Get.offAll(() => const BottomNavigationBarPage());
+      destination = const BottomNavigationBarPage();
     } else {
-      Get.offAll(() => LoginPage());
+      destination = const LoginPage();
     }
+    // Wrap the destination with RestrictedTimePage
+    Get.offAll(() => RestrictedTimePage(child: destination));
   }
 
   @override
@@ -47,14 +49,12 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // background Image!
       body: Container(
-        height: double.maxFinite,
-        width: double.maxFinite,
+        height: double.infinity,
+        width: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(image: AssetImage('assets/images/splash_bg.png'), fit: BoxFit.cover),
         ),
-        // Rotating logo!
         child: Center(
           child: RotationTransition(
             turns: _controller,

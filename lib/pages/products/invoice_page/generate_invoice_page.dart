@@ -1,6 +1,6 @@
-// ignore_for_file: deprecated_member_use
+// ✅ File: generate_invoice_page.dart - FIXED VERSION WITH SMOOTH NAVIGATION
 
-import 'dart:developer';
+// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,14 +9,15 @@ import 'package:for_u_win/components/app_snackbar.dart';
 import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/pages/bottom_navbar/bottom_navbar.dart';
 import 'package:for_u_win/pages/products/invoice_page/components/generate_qr_component.dart';
-import 'package:for_u_win/pages/products/invoice_page/components/info_row.dart';
+import 'package:for_u_win/pages/products/invoice_page/components/header.dart';
+import 'package:for_u_win/pages/products/invoice_page/components/invoice_detail.dart';
+import 'package:for_u_win/pages/products/invoice_page/components/product_name_card.dart';
 import 'package:for_u_win/pages/products/invoice_page/components/quote.dart';
 import 'package:for_u_win/pages/products/invoice_page/components/ticket_number_component.dart';
+import 'package:for_u_win/pages/products/invoice_page/invoice_service.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:sunmi_printer_plus/core/sunmi/sunmi_printer.dart';
+import 'package:open_file/open_file.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class GenerateInvoicePage extends StatefulWidget {
   final String img;
@@ -31,11 +32,12 @@ class GenerateInvoicePage extends StatefulWidget {
   final String address;
   final String drawDate;
   final String productImage;
+  final List<Map<String, bool>>? ticketDetails;
   final List<dynamic> numbers;
-
   const GenerateInvoicePage({
     super.key,
     required this.img,
+
     required this.productName,
     required this.orderNumber,
     required this.status,
@@ -48,6 +50,7 @@ class GenerateInvoicePage extends StatefulWidget {
     required this.drawDate,
     required this.numbers,
     required this.productImage,
+    required this.ticketDetails,
   });
 
   @override
@@ -59,17 +62,14 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> with TickerPr
   late AnimationController _printController;
   late Animation<Offset> _slideAnimation;
   late Animation<Offset> _printAnimation;
-
   bool _isPrinting = false;
+  bool _isNavigating = false;
 
   @override
   void initState() {
     super.initState();
 
-    // Controller for initial slide in
     _slideController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
-
-    // Controller for print slide up animation
     _printController = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
 
     _slideAnimation = Tween<Offset>(
@@ -82,294 +82,155 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> with TickerPr
       end: const Offset(0.0, -1.0),
     ).animate(CurvedAnimation(parent: _printController, curve: Curves.easeInOut));
 
+    // Add animation listener to handle navigation
+    _printController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && !_isNavigating) {
+        _performNavigation();
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _slideController.forward();
-
-      Future.delayed(const Duration(milliseconds: 800), () {
-        _handlePrint();
+      _requestPermissions().then((_) {
+        Future.delayed(const Duration(milliseconds: 1000), _handlePrintWithService);
       });
     });
   }
 
-  Future<void> _printTextRow(String title, String value) async {
-    await SunmiPrinter.printText('$title $value');
+  // Request necessary permissions
+  Future<void> _requestPermissions() async {
+    try {
+      final permissions = [
+        Permission.bluetooth,
+        Permission.bluetoothConnect,
+        Permission.bluetoothScan,
+        Permission.storage,
+      ];
+      for (var permission in permissions) {
+        if (await permission.isDenied) {
+          await permission.request();
+        }
+      }
+      debugPrint('Permissions requested');
+    } catch (e) {
+      debugPrint('Permission request failed: $e');
+      AppSnackbar.showErrorSnackbar('Permission request failed: $e');
+    }
   }
 
-  Future<void> _handlePrint() async {
+  Future<void> _handlePrintWithService() async {
     if (_isPrinting) return;
-
-    setState(() {
-      _isPrinting = true;
-    });
+    setState(() => _isPrinting = true);
 
     try {
-      final isAvailable = await SunmiPrinter.bindingPrinter();
-      if (isAvailable ?? true) {
-        AppSnackbar.showErrorSnackbar('Printer not connected.');
-        return;
+      AppSnackbar.showSuccessSnackbar('🖨️ Processing invoice...');
+
+      // Print or generate PDF
+      final success = await SunmiPrintService.printInvoice(
+        orderNumber: widget.orderNumber,
+        productName: widget.productName,
+        orderDate: widget.orderDate,
+        amount: widget.amount,
+        drawDate: widget.drawDate,
+        purchasedBy: widget.purchasedBy,
+        vat: widget.vat,
+        // ticketDetail: widget.ticketDetails,
+        prize: widget.prize,
+        status: widget.status,
+        numbers: widget.numbers,
+        address: widget.address,
+      );
+
+      if (success) {
+        final pdfPath = await SunmiPrintService.generatePdfInvoice(
+          orderNumber: widget.orderNumber,
+          productName: widget.productName,
+          orderDate: widget.orderDate,
+          amount: widget.amount,
+          productImg: widget.productImage,
+          drawDate: widget.drawDate,
+          purchasedBy: widget.purchasedBy,
+          vat: widget.vat,
+          prize: widget.prize,
+          ticketDetail: widget.ticketDetails,
+          status: widget.status,
+          numbers: widget.numbers,
+          address: widget.address,
+        );
+        if (pdfPath.isNotEmpty) {
+          AppSnackbar.showSuccessSnackbar('Invoice processed. PDF saved at: $pdfPath');
+          await OpenFile.open(pdfPath);
+        } else {
+          AppSnackbar.showSuccessSnackbar('Invoice printed successfully!');
+        }
+        HapticFeedback.heavyImpact();
+
+        _printController.forward();
+      } else {
+        throw Exception('Invoice processing failed');
       }
-      AppSnackbar.showSuccessSnackbar('Printing...');
-      HapticFeedback.mediumImpact();
-      _printController.forward();
-
-      await SunmiPrinter.startTransactionPrint(true);
-
-      // Logo
-      final ByteData byteData = await rootBundle.load('assets/images/logo.png');
-      final Uint8List imageBytes = byteData.buffer.asUint8List();
-      await SunmiPrinter.setAlignment(Alignment.center);
-      await SunmiPrinter.printImage(imageBytes);
-
-      await SunmiPrinter.lineWrap(1);
-      await SunmiPrinter.printText(widget.productName);
-      await SunmiPrinter.line();
-
-      await SunmiPrinter.setAlignment(Alignment.bottomLeft);
-      await _printTextRow('Order No:', widget.orderNumber);
-      await _printTextRow('Order Date:', widget.orderDate);
-      await _printTextRow('Status:', widget.status);
-      await _printTextRow('Buyer:', widget.purchasedBy);
-      await _printTextRow('Total:', 'PKR ${widget.amount}');
-      await _printTextRow('Draw Date:', widget.drawDate);
-      await _printTextRow('Prize:', widget.prize);
-      await SunmiPrinter.lineWrap(1);
-
-      for (int i = 0; i < widget.numbers.length; i++) {
-        await SunmiPrinter.printText('Ticket #${i + 1}');
-        final numberLine = widget.numbers[i].map((n) => n.toString().padLeft(2, '0')).join('  ');
-        await SunmiPrinter.printText(numberLine);
-        await SunmiPrinter.lineWrap(1);
-      }
-
-      await SunmiPrinter.line();
-      await SunmiPrinter.setAlignment(Alignment.center);
-      await SunmiPrinter.printText("Don't give up! You could be the next winner.");
-      await SunmiPrinter.lineWrap(1);
-
-      String qrData = 'Order:${widget.orderNumber}|Product:${widget.productName}|Date:${widget.orderDate}';
-      await SunmiPrinter.printQRCode(qrData);
-
-      await SunmiPrinter.lineWrap(2);
-      await SunmiPrinter.printText(widget.address);
-
-      await SunmiPrinter.lineWrap(3);
-      await SunmiPrinter.exitTransactionPrint(true);
-
-      AppSnackbar.showSuccessSnackbar('✅ Printed Successfully!');
-      HapticFeedback.heavyImpact();
-
-      Future.delayed(const Duration(seconds: 1), _navigateBack);
     } catch (e) {
-      log('❌ Print error: $e');
-      AppSnackbar.showErrorSnackbar('Print failed: ${e.toString()}');
-      _printController.reset();
-      Future.delayed(const Duration(seconds: 1), _navigateBack);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPrinting = false;
-        });
+      debugPrint('Print service error: $e');
+      String errorMessage = 'Invoice processing failed';
+      if (e.toString().contains('lateinit')) {
+        errorMessage = 'Printer not initialized. Please use a Sunmi POS device or check connection.';
+      } else if (e.toString().contains('not found')) {
+        errorMessage = 'Printer not found. Check device compatibility.';
+      } else if (e.toString().contains('paper')) {
+        errorMessage = 'Printer out of paper. Please check paper roll.';
       }
+      AppSnackbar.showErrorSnackbar(errorMessage);
+      _printController.reset();
+      await Future.delayed(const Duration(seconds: 2));
+      _navigateBack();
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
     }
+  }
+
+  // Perform navigation when animation completes
+  void _performNavigation() {
+    if (_isNavigating) return;
+    _isNavigating = true;
+
+    if (mounted) {
+      Get.offAll(() => BottomNavigationBarPage(), transition: Transition.noTransition, duration: Duration.zero);
+    }
+  }
+
+  // Test print for debugging
+  Future<void> _handleTestPrint() async {
+    final success = await SunmiPrintService.testPrint();
+    if (success) {
+      AppSnackbar.showSuccessSnackbar('Test print successful or PDF generated!');
+    } else {
+      AppSnackbar.showErrorSnackbar('Test print failed');
+    }
+  }
+
+  // Check printer availability for debugging
+  Future<void> _checkPrinterAvailability() async {
+    final isAvailable = await SunmiPrintService.checkPrinterAvailability();
+    AppSnackbar.showInfoSnackbar('Printer ${isAvailable ? 'Available' : 'Not Available'}');
+  }
+
+  // Manually check printer status for debugging
+  Future<void> _checkPrinterStatus() async {
+    final initialized = await SunmiPrintService.initialize();
+    AppSnackbar.showInfoSnackbar('Printer Status: ${initialized ? 'Ready' : 'Not Ready'}');
   }
 
   void _navigateBack() {
-    Get.offAll(() => BottomNavigationBarPage());
-  }
+    if (_isNavigating) return;
+    _isNavigating = true;
 
-  String _generateQRData() {
-    return 'Order:${widget.orderNumber}|Product:${widget.productName}|Date:${widget.orderDate}';
-  }
-
-  Future<Uint8List> _generatePdf() async {
-    final pdf = pw.Document();
-
-    // Load logo
-    final logoBytes = await rootBundle.load('assets/images/logo.png');
-    final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
-
-    // Load product image
-    pw.MemoryImage? productImg;
-    try {
-      if (widget.productImage.startsWith('http')) {
-        final response = await http.get(Uri.parse(widget.productImage));
-        if (response.statusCode == 200) {
-          productImg = pw.MemoryImage(response.bodyBytes);
-        }
-      } else {
-        final bytes = await rootBundle.load(widget.productImage);
-        productImg = pw.MemoryImage(bytes.buffer.asUint8List());
-      }
-    } catch (e) {
-      log('Product image load error: $e');
-    }
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
-        build:
-            (context) => [
-              // Header
-              pw.Center(child: pw.Image(logoImage, height: 60, width: 120)),
-              pw.SizedBox(height: 20),
-
-              // Product name
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.all(16),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black),
-                  borderRadius: pw.BorderRadius.circular(8),
-                ),
-                child: pw.Center(
-                  child: pw.Text(widget.productName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // Product image
-              if (productImg != null) ...[
-                pw.Center(child: pw.Image(productImg, height: 100, width: 80)),
-                pw.SizedBox(height: 20),
-              ],
-
-              // Invoice details
-              pw.Container(
-                width: double.infinity,
-                child: pw.Column(
-                  children: [
-                    _pdfRow('Product Name:', widget.productName),
-                    _pdfRow('Purchased By:', widget.purchasedBy),
-                    _pdfRow('Order No:', widget.orderNumber),
-                    _pdfRow('VAT %:', widget.vat),
-                    _pdfRow('Order Status:', widget.status),
-                    _pdfRow('Total Value:', widget.amount),
-                    _pdfRow('Order Date:', widget.orderDate),
-                    _pdfRow('Draw Date:', widget.drawDate),
-                    _pdfRow('Reflex Draw Prize:', widget.prize, bold: true),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // Ticket numbers
-              _buildTicketsGrid(widget.numbers),
-              pw.SizedBox(height: 20),
-
-              // Motivational quote
-              pw.Container(
-                width: double.infinity,
-                child: pw.Text(
-                  "Don't give up! You could be the next millionaire or winner in the upcoming draws.",
-                  style: pw.TextStyle(fontSize: 16, color: PdfColors.red),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // QR Code
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: _generateQRData(), width: 120, height: 120),
-                    pw.SizedBox(height: 8),
-                    pw.Text(widget.orderNumber, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ],
-        footer:
-            (context) => pw.Container(
-              width: double.infinity,
-              child: pw.Text(widget.address, style: pw.TextStyle(fontSize: 10), textAlign: pw.TextAlign.center),
-            ),
-      ),
-    );
-
-    return pdf.save();
-  }
-
-  pw.Widget _pdfRow(String title, String value, {bool bold = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(title, style: pw.TextStyle(fontSize: 16)),
-          pw.Text(
-            value,
-            style: pw.TextStyle(fontSize: 16, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildTicketsGrid(List<dynamic> allTickets) {
-    List<pw.Widget> ticketWidgets = [];
-
-    for (int i = 0; i < allTickets.length; i++) {
-      List<dynamic> ticketNumbers = allTickets[i];
-
-      // Ticket header
-      ticketWidgets.add(
-        pw.Container(
-          width: double.infinity,
-          padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          margin: const pw.EdgeInsets.only(bottom: 8),
-          decoration: pw.BoxDecoration(color: PdfColors.grey300, borderRadius: pw.BorderRadius.circular(4)),
-          child: pw.Text(
-            'Ticket #${i + 1}',
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-            textAlign: pw.TextAlign.center,
-          ),
-        ),
+    if (mounted) {
+      Get.offAll(
+        () => BottomNavigationBarPage(),
+        transition: Transition.fadeIn,
+        duration: const Duration(milliseconds: 300),
       );
-
-      // Ticket numbers grid
-      List<pw.Widget> rows = [];
-      for (int j = 0; j < ticketNumbers.length; j += 6) {
-        List<dynamic> rowNumbers = ticketNumbers.skip(j).take(6).toList();
-
-        rows.add(
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-            children:
-                rowNumbers
-                    .map(
-                      (number) => pw.Container(
-                        width: 40,
-                        height: 40,
-                        decoration: pw.BoxDecoration(
-                          shape: pw.BoxShape.circle,
-                          border: pw.Border.all(color: PdfColors.black),
-                        ),
-                        child: pw.Center(
-                          child: pw.Text(
-                            number.toString().padLeft(2, '0'),
-                            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-          ),
-        );
-
-        if (j + 6 < ticketNumbers.length) {
-          rows.add(pw.SizedBox(height: 6));
-        }
-      }
-
-      ticketWidgets.add(pw.Column(children: rows));
-
-      if (i < allTickets.length - 1) {
-        ticketWidgets.add(pw.SizedBox(height: 16));
-      }
     }
-
-    return pw.Column(children: ticketWidgets);
   }
 
   @override
@@ -382,156 +243,89 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> with TickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.5),
-      body: GestureDetector(
-        onTap: _isPrinting ? null : _navigateBack,
-        child: SlideTransition(
-          position: _printAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(24.r), topRight: Radius.circular(24.r)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Handle bar
-                    Container(
-                      margin: EdgeInsets.only(top: 12.h),
-                      width: 40.w,
-                      height: 4.h,
-                      decoration: BoxDecoration(
-                        color: _isPrinting ? Colors.orange[300] : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2.r),
-                      ),
-                    ),
+      backgroundColor: _isPrinting ? Colors.transparent : Colors.black.withOpacity(0.5),
+      body: Stack(
+        children: [
+          if (_isPrinting) BottomNavigationBarPage(),
 
-                    // Header
-                    Container(
-                      padding: EdgeInsets.all(20.w),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          AppText(
-                            _isPrinting ? 'Printing...' : 'Invoice',
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.bold,
-                            color: _isPrinting ? Colors.orange[600] : null,
+          // Overlay content
+          GestureDetector(
+            onTap: _isPrinting ? null : _navigateBack,
+            child: SlideTransition(
+              position: _printAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(topLeft: Radius.circular(24.r), topRight: Radius.circular(24.r)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Header(isPrinting: _isPrinting, onClose: _navigateBack),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.symmetric(horizontal: 20.w),
+                            child: Column(
+                              children: [
+                                Image.asset('assets/images/logo.png', height: 80.h),
+                                SizedBox(height: 16.h),
+                                ProductNameCard(widget.productName),
+                                SizedBox(height: 16.h),
+                                InvoiceDetails(widget: widget),
+                                SizedBox(height: 24.h),
+                                TicketNumbersWidget(numbers: widget.numbers),
+                                SizedBox(height: 24.h),
+                                GenerateQrComponent(
+                                  orderNumber: widget.orderNumber,
+                                  productName: widget.productName,
+                                  orderDate: widget.orderDate,
+                                ),
+                                SizedBox(height: 16.h),
+                                MotivationalQuote(
+                                  content:
+                                      "Don't give up! You could be the next millionaire or winner in the upcoming draws.",
+                                ),
+                                SizedBox(height: 16.h),
+                                AppText(
+                                  widget.address,
+                                  fontSize: 12.sp,
+                                  color: Colors.grey[600],
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: 24.h),
+
+                                // if (kDebugMode)
+                                //   Row(
+                                //     mainAxisAlignment: MainAxisAlignment.center,
+                                //     children: [
+                                //       ElevatedButton(onPressed: _handleTestPrint, child: const Text('Test Print')),
+                                //       const SizedBox(width: 16),
+                                //       ElevatedButton(
+                                //         onPressed: _checkPrinterAvailability,
+                                //         child: const Text('Check Printer'),
+                                //       ),
+                                //       const SizedBox(width: 16),
+                                //       ElevatedButton(onPressed: _checkPrinterStatus, child: const Text('Check Status')),
+                                //     ],
+                                //   ),
+                                SizedBox(height: 24.h),
+                              ],
+                            ),
                           ),
-                          if (!_isPrinting)
-                            GestureDetector(
-                              onTap: _navigateBack,
-                              child: Icon(Icons.close, size: 24.sp, color: Colors.grey[600]),
-                            )
-                          else
-                            Icon(Icons.print, size: 24.sp, color: Colors.orange[600]),
-                        ],
-                      ),
-                    ),
-
-                    // Content
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(horizontal: 20.w),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // Logo
-                            Image.asset('assets/images/logo.png', height: 80.h),
-                            SizedBox(height: 16.h),
-
-                            // Product name
-                            Container(
-                              padding: EdgeInsets.all(12.w),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: AppText(
-                                widget.productName,
-                                fontSize: 18.sp,
-                                fontWeight: FontWeight.bold,
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            SizedBox(height: 16.h),
-
-                            // Invoice details
-                            Container(
-                              padding: EdgeInsets.all(16.w),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(12.r),
-                              ),
-                              child: Column(
-                                children: [
-                                  Image.network(widget.productImage, height: 60.h),
-                                  SizedBox(height: 10.h),
-                                  infoRow('Product:', widget.productName),
-                                  Divider(),
-                                  infoRow(
-                                    'Total Price:',
-                                    '${(double.tryParse(widget.amount) ?? 0).toStringAsFixed(0)} AED',
-                                  ),
-                                  Divider(),
-                                  infoRow('Order No:', '#${widget.orderNumber}'),
-                                  Divider(),
-                                  infoRow('VAT %:', widget.vat),
-                                  Divider(),
-                                  infoRow('Order Status:', widget.status, isHighlighted: true),
-                                  Divider(),
-                                  infoRow('Order Date:', widget.orderDate),
-                                  Divider(),
-                                  infoRow('Draw Date:', widget.drawDate),
-                                  Divider(),
-                                  infoRow('Reflex Draw Prize:', 'Rs.${widget.prize}', isHighlighted: true),
-                                ],
-                              ),
-                            ),
-                            SizedBox(height: 24.h),
-
-                            // Ticket numbers
-                            TicketNumbersWidget(numbers: widget.numbers),
-                            SizedBox(height: 24.h),
-
-                            // QR Code
-                            GenerateQrComponent(
-                              orderNumber: widget.orderNumber,
-                              productName: widget.productName,
-                              orderDate: widget.orderDate,
-                            ),
-                            SizedBox(height: 16.h),
-
-                            // Motivational quote
-                            MotivationalQuote(
-                              content:
-                                  "Don't give up! You could be the next millionaire or winner in the upcoming draws.",
-                            ),
-                            SizedBox(height: 16.h),
-
-                            // Address
-                            AppText(
-                              widget.address,
-                              fontSize: 12.sp,
-                              color: Colors.grey[600],
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: 24.h),
-                          ],
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -39,9 +39,12 @@ class _ProductsPageState extends State<ProductsPage> with WidgetsBindingObserver
   void _initializeData() {
     if (!_initialized) {
       final productsService = Provider.of<ProductsServices>(context, listen: false);
-      if (productsService.productsData?.data == null) {
+      final productList = productsService.productsData?.data;
+
+      if (productList == null || productList.isEmpty) {
         productsService.fetchProducts();
       }
+
       _initialized = true;
     }
   }
@@ -153,17 +156,13 @@ class _ProductsPageState extends State<ProductsPage> with WidgetsBindingObserver
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
+                        margin: EdgeInsets.only(left: 10.w),
                         height: 110.h,
                         width: 90.w,
                         alignment: Alignment.center,
-                        child: Image.network(
-                          product.image ?? "",
-                          height: 90.h,
-                          width: 90.w,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(Icons.image_not_supported, size: 50.sp);
-                          },
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10.r),
+                          image: DecorationImage(image: NetworkImage(product.image ?? ""), fit: BoxFit.cover),
                         ),
                       ),
                       SizedBox(width: 12.w),

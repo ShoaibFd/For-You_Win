@@ -126,7 +126,7 @@ class ProductsServices with ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final jsonData = jsonDecode(response.body);
         final orderNumber = jsonData['orderNumber'];
-        AppSnackbar.showSuccessSnackbar(jsonData['message'] ?? 'Purchase successful!');
+        // AppSnackbar.showSuccessSnackbar(jsonData['message'] ?? 'Purchase successful!');
         return orderNumber?.toString();
       } else {
         final jsonData = jsonDecode(response.body);
@@ -143,7 +143,7 @@ class ProductsServices with ChangeNotifier {
     }
   }
 
-  Future<InvoiceResponse?> fetchInvoice(String orderNumber, List numbers, {int? index}) async {
+  Future<InvoiceResponse?> fetchInvoice(String orderNumber, List numbers, List<Map<String, bool>> gameTypesForPrinting, {int? index}) async {
     try {
       _isLoading = true;
       Future.microtask(() => notifyListeners());
@@ -159,9 +159,17 @@ class ProductsServices with ChangeNotifier {
         final jsonData = jsonDecode(response.body);
         final invoice = InvoiceResponse.fromJson(jsonData);
         _invoiceResponse = invoice;
+
+        // Extract straight, rumble, and chance for each ticket
+        final List<Map<String, bool>> ticketDetails =
+            invoice.tickets.map((ticket) {
+              return {'straight': ticket.straight == 1, 'rumble': ticket.rumble == 1, 'chance': ticket.chance == 1};
+            }).toList();
+
         Get.to(
           () => GenerateInvoicePage(
             numbers: numbers,
+            ticketDetails: ticketDetails, 
             productImage: invoice.productImage,
             img: invoice.productImage,
             orderNumber: orderNumber,
@@ -172,10 +180,11 @@ class ProductsServices with ChangeNotifier {
             purchasedBy: invoice.purchasedBy,
             vat: invoice.vat,
             prize: invoice.prize,
-            address: invoice.address,
+            address: invoice.companyDetails.address,
             drawDate: invoice.drawDate,
           ),
         );
+
         return invoice;
       } else {
         log('Failed to fetch invoice. Status code: ${response.statusCode}');

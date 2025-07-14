@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
@@ -36,20 +35,19 @@ class InvoiceServices with ChangeNotifier {
         body: jsonEncode(requestBody),
       );
 
-      log('Response in My Earning: ${response.statusCode}, ${response.body}');
+      print('Response in My Earning: ${response.statusCode}, ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         _earningData = responseData;
-      
         return true;
       } else {
-        log("Request failed: ${response.statusCode}");
+        print("Request failed: ${response.statusCode}");
         AppSnackbar.showErrorSnackbar('Failed to fetch earnings.');
         return false;
       }
     } catch (e) {
-      log("Earning error: $e");
+      print("Earning error: $e");
       AppSnackbar.showErrorSnackbar('Something went wrong. Please try again.');
       return false;
     } finally {
@@ -61,6 +59,13 @@ class InvoiceServices with ChangeNotifier {
   /// Clear earning data
   void clearEarningData() {
     _earningData = null;
+    notifyListeners();
+  }
+
+  /// Clear all data (added as requested)
+  void clearData() {
+    _earningData = null;
+    _isLoading = false;
     notifyListeners();
   }
 }

@@ -7,13 +7,10 @@ class InvoiceResponse {
   final String orderDate;
   final String purchasedBy;
   final String productImage;
-  final List<String> numbers;
+  final List<Ticket> tickets;
   final String drawDate;
   final String prize;
-  final String logoUrl;
-  final String address;
-  final String website;
-  final String qrCodeUrl;
+  final CompanyDetails companyDetails;
 
   InvoiceResponse({
     required this.productName,
@@ -24,19 +21,19 @@ class InvoiceResponse {
     required this.orderDate,
     required this.purchasedBy,
     required this.productImage,
-    required this.numbers,
+    required this.tickets,
     required this.drawDate,
     required this.prize,
-    required this.logoUrl,
-    required this.address,
-    required this.website,
-    required this.qrCodeUrl,
+    required this.companyDetails,
   });
 
   factory InvoiceResponse.fromJson(Map<String, dynamic> json) {
     final invoice = json['data']['invoice'];
-    final tickets = json['data']['tickets'][0];
-    final company = json['data']['company_details'];
+    final ticketsList = json['data']['tickets'] as List;
+    final companyDetails = json['data']['company_details'];
+
+    List<Ticket> tickets = ticketsList.map((ticketJson) => Ticket.fromJson(ticketJson)).toList();
+
     return InvoiceResponse(
       productName: invoice['product_name'],
       orderNumber: invoice['order_number'],
@@ -46,13 +43,54 @@ class InvoiceResponse {
       orderDate: invoice['order_date'],
       purchasedBy: invoice['purchased_by'],
       productImage: invoice['product_image'],
-      numbers: List<String>.from(tickets['numbers']),
+      tickets: tickets,
       drawDate: json['data']['draw_date'],
       prize: json['data']['raffle_draw_prize'],
-      logoUrl: company['logo'],
-      address: company['address'],
-      website: company['website'],
-      qrCodeUrl: company['qr_code_url'],
+      companyDetails: CompanyDetails.fromJson(companyDetails),
+    );
+  }
+}
+
+class Ticket {
+  final List<String> numbers;
+  final int straight;
+  final int rumble;
+  final int chance;
+  final String productPage;
+
+  Ticket({
+    required this.numbers,
+    required this.straight,
+    required this.rumble,
+    required this.chance,
+    required this.productPage,
+  });
+
+  factory Ticket.fromJson(Map<String, dynamic> json) {
+    return Ticket(
+      numbers: List<String>.from(json['numbers']),
+      straight: json['straight'],
+      rumble: json['rumble'],
+      chance: json['chance'],
+      productPage: json['product_page'],
+    );
+  }
+}
+
+class CompanyDetails {
+  final String logo;
+  final String address;
+  final String website;
+  final String qrCodeUrl;
+
+  CompanyDetails({required this.logo, required this.address, required this.website, required this.qrCodeUrl});
+
+  factory CompanyDetails.fromJson(Map<String, dynamic> json) {
+    return CompanyDetails(
+      logo: json['logo'],
+      address: json['address'],
+      website: json['website'],
+      qrCodeUrl: json['qr_code_url'],
     );
   }
 }

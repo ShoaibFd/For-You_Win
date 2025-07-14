@@ -1,7 +1,5 @@
 // ignore_for_file: deprecated_member_use
-
 import 'dart:developer';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,11 +11,12 @@ import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/components/primary_button.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
 import 'package:for_u_win/data/services/tickets/ticket_services.dart';
+import 'package:for_u_win/pages/bottom_navbar/bottom_navbar.dart';
 import 'package:for_u_win/pages/products/invoice_page/components/info_row.dart';
-import 'package:for_u_win/pages/tickets/mega_page.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+import 'package:for_u_win/pages/tickets/services/lottery_print_service.dart';
+import 'package:get/get.dart';
+import 'package:open_file/open_file.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 class ClickPage extends StatefulWidget {
@@ -28,354 +27,402 @@ class ClickPage extends StatefulWidget {
 }
 
 class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
+  // Controllers
   final searchController = TextEditingController();
-
-  // Animation controllers for invoice functionality
   late AnimationController slideController;
-  late AnimationController fadeController;
   late AnimationController printController;
   late Animation<Offset> slideAnimation;
-  late Animation<double> fadeAnimation;
-  late Animation<Offset> printSlideAnimation;
+  late Animation<Offset> printAnimation;
 
+  // State variables
   bool isVisible = false;
   bool isPrinting = false;
+  bool isNavigating = false;
   bool showInvoice = false;
-  Map<String, dynamic>? invoiceData;
-  String? paidTicketId;
+  bool hasAutoSearched = false;
+  bool isPaymentProcessing = false;
 
-  final GlobalKey invoiceKey = GlobalKey();
+  // Data variables
+  Map<String, dynamic>? invoiceData;
+  Set<String> paidOrderNumbers = {}; // Track paid order numbers
 
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+    _clearClickData(); // Clear data on init for fresh state
+    _setupPostFrameCallback();
+  }
 
-    // Initialize animation controllers
+  void _initializeAnimations() {
     slideController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
-    fadeController = AnimationController(duration: const Duration(milliseconds: 400), vsync: this);
-    printController = AnimationController(duration: const Duration(milliseconds: 2000), vsync: this);
+    printController = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
 
     slideAnimation = Tween<Offset>(
       begin: const Offset(0.0, 1.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: slideController, curve: Curves.easeOutCubic));
 
-    fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: fadeController, curve: Curves.easeIn));
-
-    printSlideAnimation = Tween<Offset>(
+    printAnimation = Tween<Offset>(
       begin: Offset.zero,
       end: const Offset(0.0, -1.0),
     ).animate(CurvedAnimation(parent: printController, curve: Curves.easeInOut));
-  }
 
-  void showInvoiceAnimation() {
-    setState(() {
-      isVisible = true;
-      showInvoice = true;
+    printController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && !isNavigating) {
+        _performNavigation();
+      }
     });
-    slideController.forward();
-    fadeController.forward();
   }
 
-  void hideInvoice() {
-    setState(() {
-      showInvoice = false;
-      isVisible = false;
+  void _setupPostFrameCallback() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleQRCodeArguments();
     });
-    slideController.reset();
-    fadeController.reset();
-    printController.reset();
   }
 
-  Future<void> handlePayment(TicketServices ticket, Map<String, dynamic> matchedTicket) async {
-    final rawTicketId = matchedTicket['id']; // ✅ Correct key
-
-    if (rawTicketId == null) {
-      log('❌ ticket id is null');
-      return;
+  /// Clear all page data and reset TicketServices
+  void _clearClickData() {
+    if (mounted) {
+      setState(() {
+        isVisible = false;
+        isPrinting = false;
+        isNavigating = false;
+        showInvoice = false;
+        hasAutoSearched = false;
+        isPaymentProcessing = false;
+        invoiceData = null;
+        paidOrderNumbers.clear();
+        searchController.clear();
+      });
     }
 
-    final ticketId = int.tryParse(rawTicketId.toString());
-
-    if (ticketId == null) {
-      log('❌ ticket id is not a valid int');
-      return;
-    }
-
-    await ticket.payTicket(ticketId, matchedTicket['matched_price'].toString());
-    log('✅ Ticket Id in ClickPage: $ticketId');
-
-    invoiceData = {
-      'ticket': matchedTicket,
-      'orderNumber': ticket.clickTicketData?['order_number'],
-      'status': ticket.clickTicketData?['status'],
-      'hasWinners': ticket.clickTicketData?['has_winners'],
-    };
-
-    showInvoiceAnimation();
-    await handlePrint(matchedTicket);
-
-    setState(() {
-      paidTicketId = ticketId.toString(); // ✅ Safe
-    });
-  }
-
-  Future<void> handlePrint(Map<String, dynamic> matchedTicket) async {
-    setState(() {
-      isPrinting = true;
-    });
-
-    try {
-      HapticFeedback.lightImpact();
-      final pdfData = await generatePdf(matchedTicket);
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/click_ticket_${matchedTicket['ticket_id']}.pdf');
-      await file.writeAsBytes(pdfData);
-
-      printController.forward();
-      await Future.delayed(const Duration(milliseconds: 2000));
-
+    // Use addPostFrameCallback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        AppSnackbar.showSuccessSnackbar('Receipt printed successfully!');
+        final ticket = Provider.of<TicketServices>(context, listen: false);
+        ticket.clearData(); // Clear all ticket data for all screens
+        log('🧹 Cleared ClickPage data and all TicketServices data');
+      }
+    });
+  }
+
+  /// Handle QR code arguments and perform auto search
+  void _handleQRCodeArguments() {
+    try {
+      final arguments = Get.arguments;
+      if (arguments != null && arguments is Map<String, dynamic> && !hasAutoSearched) {
+        final ticketId = arguments['ticket_id']?.toString();
+        if (ticketId != null && ticketId.isNotEmpty) {
+          log('🔍 Auto-searching for ticket ID from QR: $ticketId');
+          searchController.text = ticketId;
+          _performSearch(ticketId);
+          hasAutoSearched = true;
+        }
       }
     } catch (e) {
-      log('Error preparing print: $e');
-      if (mounted) {
-        AppSnackbar.showErrorSnackbar('Error preparing print: $e');
+      log('❌ Error handling QR code arguments: $e');
+      AppSnackbar.showErrorSnackbar('Error processing QR code');
+    }
+  }
+
+  /// Perform search with validation
+  void _performSearch(String orderNumber) {
+    if (orderNumber.trim().isEmpty) {
+      AppSnackbar.showErrorSnackbar('Please enter an order number');
+      return;
+    }
+
+    try {
+      final ticket = Provider.of<TicketServices>(context, listen: false);
+      ticket.clickTicketSearch(orderNumber.trim());
+      log('🔍 Searching for Click-2 order number: $orderNumber');
+
+      // Use addPostFrameCallback to avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            paidOrderNumbers.clear(); // Clear paid order numbers on new search
+          });
+        }
+      });
+    } catch (e) {
+      log('❌ Search error: $e');
+      AppSnackbar.showErrorSnackbar('Search failed. Please try again.');
+    }
+  }
+
+  /// Handle search button tap
+  void _onSearchButtonTap() {
+    final order = searchController.text.trim();
+    if (order.isNotEmpty) {
+      _performSearch(order);
+      searchController.clear();
+    } else {
+      AppSnackbar.showErrorSnackbar('Please enter an order number');
+    }
+  }
+
+  /// Show invoice animation
+  void showInvoiceAnimation() {
+    if (mounted) {
+      setState(() {
+        isVisible = true;
+        showInvoice = true;
+      });
+      slideController.forward();
+    }
+  }
+
+  /// Hide invoice
+  void hideInvoice() {
+    if (mounted) {
+      setState(() {
+        showInvoice = false;
+        isVisible = false;
+      });
+      slideController.reset();
+      printController.reset();
+    }
+  }
+
+  /// Request permissions
+  Future<void> _requestPermissions() async {
+    try {
+      final permissions = [
+        Permission.bluetooth,
+        Permission.bluetoothConnect,
+        Permission.bluetoothScan,
+        Permission.storage,
+      ];
+      for (var permission in permissions) {
+        if (await permission.isDenied) {
+          final result = await permission.request();
+          if (result.isPermanentlyDenied) {
+            AppSnackbar.showErrorSnackbar('Permission denied. Please enable in settings.');
+            return;
+          }
+        }
       }
-    } finally {
+      debugPrint('🖨️ Permissions granted');
+    } catch (e) {
+      debugPrint('❌ Permission request failed: $e');
+      AppSnackbar.showErrorSnackbar('Permission request failed: $e');
+    }
+  }
+
+  // ✅ Calculate total matched price for all winning tickets
+  double _calculateTotalMatchedPrice(List<Map<String, dynamic>> winningTickets) {
+    double total = 0.0;
+    for (var ticket in winningTickets) {
+      final matchedPrice = double.tryParse(ticket['matched_price']?.toString() ?? '0') ?? 0.0;
+      total += matchedPrice;
+    }
+    return total;
+  }
+
+  // ✅ Handle payment for all winning tickets at once
+  Future<void> handleBulkPayment(TicketServices ticket, List<Map<String, dynamic>> winningTickets) async {
+    if (isPaymentProcessing || winningTickets.isEmpty) return;
+
+    final orderNumber = ticket.clickTicketData?['order_number']?.toString();
+    if (orderNumber == null) {
+      log('❌ Order number is null');
+      AppSnackbar.showErrorSnackbar('Order number is missing');
+      return;
+    }
+
+    if (mounted) {
+      setState(() => isPaymentProcessing = true);
+    }
+
+    try {
+      // Calculate total amount
+      final totalAmount = _calculateTotalMatchedPrice(winningTickets);
+
+      // Pay for each ticket individually (if your API requires individual payments)
+      for (var matchedTicket in winningTickets) {
+        final rawTicketId = matchedTicket['id'];
+        if (rawTicketId == null) continue;
+
+        final ticketId = int.tryParse(rawTicketId.toString());
+        if (ticketId == null) continue;
+
+        await ticket.payTicket(ticketId, matchedTicket['matched_price'].toString());
+        log('✅ Payment successful for ticket ID: $ticketId');
+
+        // Update ticket status
+        matchedTicket['order_status'] = 1;
+      }
+
+      // Create consolidated invoice data
+      invoiceData = {
+        'tickets': winningTickets,
+        'orderNumber': orderNumber,
+        'status': 'Paid',
+        'totalAmount': totalAmount,
+        'hasWinners': ticket.clickTicketData?['has_winners'],
+        'ticketCount': winningTickets.length,
+      };
+
+      showInvoiceAnimation();
+      await _handleBulkPrintWithLotteryService(winningTickets, totalAmount, orderNumber);
+
       if (mounted) {
         setState(() {
-          isPrinting = false;
+          paidOrderNumbers.add(orderNumber); // Mark this order as paid
         });
-        // Hide invoice after printing
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            hideInvoice();
-          }
-        });
+      }
+    } catch (e) {
+      log('❌ Bulk payment failed: $e');
+      AppSnackbar.showErrorSnackbar('Payment failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isPaymentProcessing = false);
       }
     }
   }
 
-  String generateQRData(Map<String, dynamic> matchedTicket) {
-    return 'TicketID:${matchedTicket['ticket_id']}|Product:${matchedTicket['product_name']}|DrawDate:${matchedTicket['draw_date']}|Prize:${matchedTicket['matched_price']}';
-  }
+  // ✅ Handle bulk print with lottery service
+  Future<void> _handleBulkPrintWithLotteryService(
+    List<Map<String, dynamic>> winningTickets,
+    double totalAmount,
+    String orderNumber,
+  ) async {
+    if (isPrinting) return;
 
-  pw.Widget invoiceRow(String title, String value, {bool bold = false, double fontSize = 14}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            title,
-            style: pw.TextStyle(fontSize: fontSize, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(fontSize: fontSize, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
-          ),
-        ],
-      ),
-    );
-  }
+    if (mounted) {
+      setState(() => isPrinting = true);
+    }
 
-  pw.Widget buildNumbersGrid(List<dynamic> numbers) {
-    List<pw.Widget> rows = [];
+    try {
+      await _requestPermissions();
+      AppSnackbar.showSuccessSnackbar('Processing consolidated receipt...');
 
-    for (int i = 0; i < numbers.length; i += 6) {
-      List<dynamic> rowNumbers = numbers.skip(i).take(6).toList();
+      // Get candidate name from first ticket (assuming same purchaser)
+      String candidateName = _extractCandidateName(winningTickets.first);
 
-      rows.add(
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-          children:
-              rowNumbers.map((number) {
-                return pw.Container(
-                  width: 35,
-                  height: 35,
-                  decoration: pw.BoxDecoration(
-                    shape: pw.BoxShape.circle,
-                    border: pw.Border.all(color: PdfColors.black, width: 1),
-                  ),
-                  child: pw.Center(
-                    child: pw.Text(
-                      number.toString().padLeft(2, '0'),
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                );
-              }).toList(),
-        ),
+      final success = await LotteryPrintService.printLotteryInvoice(
+        orderNumber: orderNumber,
+        purchasedBy: candidateName,
+        amount: 'AED ${totalAmount.toStringAsFixed(2)}',
+        drawDate: winningTickets.first['draw_date'].toString().split(' ')[0],
+        additionalInfo: 'Total Winning Tickets: ${winningTickets.length}',
+        ticketCount: winningTickets.length,
+        individualTickets: winningTickets,
       );
 
-      if (i + 6 < numbers.length) {
-        rows.add(pw.SizedBox(height: 6));
+      if (success) {
+        final pdfPath = await LotteryPrintService.generateLotteryPdfInvoice(
+          orderNumber: orderNumber,
+          purchasedBy: candidateName,
+          amount: 'AED ${totalAmount.toStringAsFixed(2)}',
+          drawDate: winningTickets.first['draw_date'].toString().split(' ')[0],
+          additionalInfo: 'Total Winning Tickets: ${winningTickets.length}',
+          ticketCount: winningTickets.length,
+          individualTickets: winningTickets,
+        );
+
+        if (pdfPath.isNotEmpty) {
+          AppSnackbar.showSuccessSnackbar('Consolidated receipt processed. PDF saved at: $pdfPath');
+          await OpenFile.open(pdfPath);
+        } else {
+          AppSnackbar.showSuccessSnackbar('Consolidated receipt printed successfully!');
+        }
+
+        HapticFeedback.heavyImpact();
+        printController.forward();
+      } else {
+        throw Exception('Receipt processing failed');
+      }
+    } catch (e) {
+      log('❌ Print service error: $e');
+      AppSnackbar.showErrorSnackbar(_getErrorMessage(e.toString()));
+      printController.reset();
+      await Future.delayed(const Duration(seconds: 2));
+      _navigateBack();
+    } finally {
+      if (mounted) {
+        setState(() => isPrinting = false);
+      }
+    }
+  }
+
+  /// Get appropriate error message
+  String _getErrorMessage(String error) {
+    if (error.contains('lateinit')) return 'Printer not initialized. Please use a Sunmi POS device.';
+    if (error.contains('not found')) return 'Printer not found. Check device compatibility.';
+    if (error.contains('paper')) return 'Printer out of paper. Please check paper roll.';
+    return 'Receipt processing failed. Please try again.';
+  }
+
+  /// Perform navigation after animation
+  void _performNavigation() {
+    if (isNavigating) return;
+    isNavigating = true;
+    if (mounted) {
+      Get.offAll(() => BottomNavigationBarPage(), transition: Transition.noTransition, duration: Duration.zero);
+    }
+  }
+
+  /// Navigate back
+  void _navigateBack() {
+    if (isNavigating) return;
+    isNavigating = true;
+    if (mounted) {
+      Get.offAll(
+        () => BottomNavigationBarPage(),
+        transition: Transition.fadeIn,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  /// Find all winning tickets from response
+  List<Map<String, dynamic>> _findWinningTickets(TicketServices ticket) {
+    if (ticket.clickTicketData == null || ticket.clickTicketData!['tickets'] == null) return [];
+
+    final tickets = ticket.clickTicketData!['tickets'] as List<dynamic>;
+    final winningTickets = <Map<String, dynamic>>[];
+
+    for (var ticketData in tickets) {
+      final matchedPrice = double.tryParse(ticketData['matched_price']?.toString() ?? '0') ?? 0.0;
+      if (matchedPrice > 0) {
+        log('✅ Found winning ticket with ID: ${ticketData['id']}, matched_price: $matchedPrice');
+        winningTickets.add(ticketData);
       }
     }
 
-    return pw.Column(children: rows);
+    if (winningTickets.isEmpty) {
+      log('❌ No tickets with matched_price > 0 found');
+    }
+
+    return winningTickets;
   }
 
-  Future<Uint8List> generatePdf(Map<String, dynamic> matchedTicket) async {
-    final bytes = await rootBundle.load('assets/images/logo.png');
-    final image = pw.MemoryImage(bytes.buffer.asUint8List());
+  /// Extract candidate name safely
+  String _extractCandidateName(Map<String, dynamic> ticket) {
+    final candidate = ticket['candidate'];
+    if (candidate == null) return 'Unknown';
+    return candidate is Map ? candidate['name']?.toString() ?? 'Unknown' : candidate.toString();
+  }
 
-    // Convert numbers and matched_numbers from String to List if necessary
-    List<dynamic> numbers =
-        matchedTicket['numbers'] is String
-            ? (matchedTicket['numbers'] as String).split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList()
-            : (matchedTicket['numbers'] as List<dynamic>? ?? []);
-    List<dynamic> matchedNumbers =
-        matchedTicket['matched_numbers'] is String
-            ? (matchedTicket['matched_numbers'] as String).split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList()
-            : (matchedTicket['matched_numbers'] as List<dynamic>? ?? []);
+  // ✅ Check if order is already paid
+  bool _isOrderPaid(TicketServices ticket, List<Map<String, dynamic>> winningTickets) {
+    final orderNumber = ticket.clickTicketData?['order_number']?.toString();
+    if (orderNumber == null) return false;
 
-    final pdf = pw.Document();
+    // Check if order is marked as paid
+    if (paidOrderNumbers.contains(orderNumber)) return true;
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
-        build: (context) {
-          return [
-            // Header
-            pw.Center(child: pw.Image(image, height: 60, width: 120)),
-            pw.SizedBox(height: 20),
-
-            // Title
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.all(16),
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.black, width: 1),
-                borderRadius: pw.BorderRadius.circular(8),
-              ),
-              child: pw.Center(
-                child: pw.Text(
-                  'Click-2 Winning Ticket Receipt',
-                  style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-            ),
-            pw.SizedBox(height: 20),
-
-            // Ticket Information
-            pw.Container(
-              width: double.infinity,
-              child: pw.Column(
-                children: [
-                  invoiceRow('Ticket ID:', matchedTicket['ticket_id'].toString(), fontSize: 14),
-                  invoiceRow('Product Name:', matchedTicket['product_name'].toString(), fontSize: 14),
-                  invoiceRow('Candidate:', matchedTicket['candidate'].toString(), fontSize: 14),
-                  invoiceRow('Order Date:', matchedTicket['order_date'].toString().split(' ')[0], fontSize: 14),
-                  invoiceRow('Draw Date:', matchedTicket['draw_date'].toString().split(' ')[0], fontSize: 14),
-                  invoiceRow('Prize Amount:', 'AED ${matchedTicket['matched_price']}', bold: true, fontSize: 16),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 20),
-
-            // Original Numbers
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(color: PdfColors.grey200, borderRadius: pw.BorderRadius.circular(8)),
-              child: pw.Column(
-                children: [
-                  pw.Text('Your Numbers', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                  pw.SizedBox(height: 8),
-                  buildNumbersGrid(numbers),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 16),
-
-            // Matched Numbers
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(color: PdfColors.green100, borderRadius: pw.BorderRadius.circular(8)),
-              child: pw.Column(
-                children: [
-                  pw.Text(
-                    'Winning Numbers',
-                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.green800),
-                  ),
-                  pw.SizedBox(height: 8),
-                  buildNumbersGrid(matchedNumbers),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 20),
-
-            // Congratulations message
-            pw.Container(
-              width: double.infinity,
-              child: pw.Text(
-                "🎉 Congratulations! You are a winner! 🎉",
-                style: pw.TextStyle(fontSize: 18, color: PdfColors.red, fontWeight: pw.FontWeight.bold),
-                textAlign: pw.TextAlign.center,
-              ),
-            ),
-            pw.SizedBox(height: 20),
-
-            // QR Code
-            pw.Center(
-              child: pw.Column(
-                children: [
-                  pw.BarcodeWidget(
-                    barcode: pw.Barcode.qrCode(),
-                    data: generateQRData(matchedTicket),
-                    width: 120,
-                    height: 120,
-                  ),
-                  pw.SizedBox(height: 8),
-                  pw.Text(
-                    matchedTicket['ticket_id'].toString(),
-                    style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ];
-        },
-        footer:
-            (context) => pw.Column(
-              children: [
-                pw.Container(
-                  width: double.infinity,
-                  child: pw.Text(
-                    "For You Win - Your Gateway to Fortune",
-                    style: pw.TextStyle(fontSize: 10),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-                pw.Container(
-                  width: double.infinity,
-                  child: pw.Text(
-                    "Website: https://foryouwin.com/user/login",
-                    style: pw.TextStyle(fontSize: 10, color: PdfColors.blue),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-      ),
-    );
-
-    return pdf.save();
+    // Check if all tickets in this order are already paid
+    return winningTickets.every((ticket) => ticket['order_status'] == 1);
   }
 
   @override
   void dispose() {
+    _clearClickData(); // Clear data when leaving
     slideController.dispose();
-    fadeController.dispose();
     printController.dispose();
     searchController.dispose();
     super.dispose();
@@ -383,244 +430,259 @@ class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: AppDrawer(),
-      appBar: AppBar(title: AppText('Click-2', fontSize: 16.sp, fontWeight: FontWeight.bold)),
-      body: Stack(
-        children: [
-          // Main content
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14.w),
-            child: Consumer<TicketServices>(
-              builder: (context, ticket, child) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 20.h),
-                    Center(child: AppText('Click-2 Ticket Search', fontSize: 20.sp)),
-                    SizedBox(height: 10.h),
+    return WillPopScope(
+      onWillPop: () async {
+        _clearClickData(); // Clear data on back navigation
+        return true;
+      },
+      child: Scaffold(
+        drawer: AppDrawer(),
+        appBar: AppBar(title: AppText('Click-2', fontSize: 16.sp, fontWeight: FontWeight.bold)),
+        body: Stack(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14.w),
+              child: Consumer<TicketServices>(
+                builder: (context, ticket, child) {
+                  final winningTickets = _findWinningTickets(ticket);
+                  final totalMatchedPrice = _calculateTotalMatchedPrice(winningTickets); // Calculate total
+                  final isOrderPaid = _isOrderPaid(ticket, winningTickets); // Check if order is paid
 
-                    // Search Field
-                    SizedBox(
-                      height: 55.h,
-                      child: TextFormField(
-                        controller: searchController,
-                        cursorColor: secondaryColor,
-                        decoration: InputDecoration(
-                          suffixIcon: GestureDetector(
-                            onTap: () {
-                              final order = searchController.text.trim();
-                              if (order.isNotEmpty) {
-                                ticket.clickTicketSearch(order);
-                                log('Order number: $order');
-                                setState(() {
-                                  paidTicketId = null;
-                                });
-                              }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 20.h),
+                      Center(child: AppText('Click-2 Ticket Search', fontSize: 20.sp)),
+                      SizedBox(height: 10.h),
+                      SizedBox(
+                        height: 55.h,
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          controller: searchController,
+                          cursorColor: secondaryColor,
+                          onFieldSubmitted: (value) {
+                            if (value.trim().isNotEmpty) {
+                              _performSearch(value.trim());
                               searchController.clear();
-                            },
-                            child: Container(
-                              width: 80.w,
-                              decoration: BoxDecoration(
-                                color: secondaryColor,
-                                borderRadius: BorderRadius.circular(8.r),
+                            }
+                          },
+                          decoration: InputDecoration(
+                            suffixIcon: GestureDetector(
+                              onTap: _onSearchButtonTap,
+                              child: Container(
+                                width: 80.w,
+                                decoration: BoxDecoration(
+                                  color: secondaryColor,
+                                  borderRadius: BorderRadius.circular(8.r),
+                                ),
+                                child: Center(child: AppText('Search', fontWeight: FontWeight.bold)),
                               ),
-                              child: Center(child: AppText('Search', fontWeight: FontWeight.bold)),
                             ),
-                          ),
-                          filled: true,
-                          fillColor: primaryColor,
-                          hintText: 'Enter Order Number ',
-                          hintStyle: TextStyle(fontSize: 11.sp),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10.r),
-                            borderSide: BorderSide.none,
+                            filled: true,
+                            fillColor: primaryColor,
+                            hintText: 'Enter Order Number',
+                            hintStyle: TextStyle(fontSize: 11.sp),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Loading Indicator
-                    if (ticket.isLoading) Center(child: AppLoading()),
-
-                    // Display API data
-                    if (ticket.clickTicketData != null && !ticket.isLoading)
-                      Expanded(
-                        child: SingleChildScrollView(
+                      SizedBox(height: 20.h),
+                      if (ticket.isLoading) Center(child: AppLoading()),
+                      if (winningTickets.isNotEmpty && !ticket.isLoading)
+                        Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SizedBox(height: 20.h),
-                              AppText('Ticket Result:', fontSize: 18.sp),
-                              SizedBox(height: 20.h),
-                              dataRow(
-                                'Status',
-                                ticket.clickTicketData!['success'].toString(),
-                                valueColor: Colors.green,
-                              ),
-                              Divider(),
-                              dataRow('Order Number', ticket.clickTicketData!['order_number'].toString()),
-                              Divider(),
-                              dataRow('Has Winners', ticket.clickTicketData!['has_winners'].toString()),
-
-                              SizedBox(height: 40.h),
-                              AppText('Matched Tickets:', fontSize: 18.sp),
-                              SizedBox(height: 20.h),
-
-                              ...ticket.clickTicketData!['tickets']?.map<Widget>((matched) {
-                                    final ticketId = matched['ticket_id']?.toString() ?? matched['id'].toString();
-                                    final isPaid = matched['paid_by'] != null;
-
-                                    final rows = [
-                                      MapEntry('Candidate', matched['candidate']['name'].toString()),
-                                      MapEntry('Ticket ID', ticketId),
-                                      MapEntry('Product', matched['product_name'].toString()),
-                                      MapEntry('Order Number', matched['order_number'].toString()),
-                                      MapEntry('Status', matched['order_status'] == 1 ? 'Paid' : 'Unpaid'),
-                                      MapEntry('Winning Numbers', matched['numbers']?.toString() ?? ''),
-                                      MapEntry('Matched Numbers', matched['matched_numbers']?.toString() ?? ''),
-                                      MapEntry('Raffle Draw Prize', matched['raffle_draw_prize'].toString()),
-                                      MapEntry('Matched Prize', matched['matched_prize'].toString()),
-                                      MapEntry('Straight', matched['straight'].toString()),
-                                      MapEntry('Rumble', matched['rumble'].toString()),
-                                      MapEntry('Chance', matched['chance'].toString()),
-                                      MapEntry('Draw Date', matched['draw_date'].toString().split(' ')[0]),
-                                      MapEntry('Order Date', matched['order_date'].toString().split(' ')[0]),
-                                    ];
-
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: winningTickets.length,
+                                  itemBuilder: (context, index) {
+                                    final currentWinningTicket = winningTickets[index];
                                     return Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Table(
-                                          border: TableBorder.all(
-                                            color: isPaid ? Colors.green : secondaryColor,
-                                            width: 1.2,
-                                            borderRadius: BorderRadius.circular(8.r),
+                                        SizedBox(height: index == 0 ? 0 : 24.h),
+                                        // ✅ Using ForYouPage design for ticket display
+                                        Container(
+                                          padding: EdgeInsets.all(16.w),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(12.r),
+                                            border: Border.all(color: Colors.green[300]!, width: 2),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.green.withOpacity(0.1),
+                                                blurRadius: 8,
+                                                offset: Offset(0, 4),
+                                              ),
+                                            ],
                                           ),
-                                          columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1)},
-                                          children: List.generate((rows.length / 2).ceil(), (index) {
-                                            final first = rows[index * 2];
-                                            final second = index * 2 + 1 < rows.length ? rows[index * 2 + 1] : null;
-                                            return TableRow(
-                                              children: [
-                                                tableCell('${first.key}\n${first.value}', isPaid: isPaid),
-                                                tableCell(
-                                                  second != null ? '${second.key}\n${second.value}' : '',
-                                                  isPaid: isPaid,
-                                                ),
-                                              ],
-                                            );
-                                          }),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              AppText(
+                                                'Winning Ticket Details',
+                                                fontSize: 18.sp,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.green[800],
+                                              ),
+                                              SizedBox(height: 16.h),
+                                              _buildDetailRow(
+                                                'Order Number:',
+                                                ticket.clickTicketData!['order_number'].toString(),
+                                              ),
+                                              _buildDetailRow(
+                                                'Order Date:',
+                                                currentWinningTicket['order_date']?.toString().split(' ')[0] ??
+                                                    currentWinningTicket['draw_date']?.toString().split(' ')[0] ??
+                                                    'N/A',
+                                              ),
+                                              _buildDetailRow(
+                                                'Agent Name:',
+                                                _extractCandidateName(currentWinningTicket),
+                                              ),
+                                              _buildDetailRow(
+                                                'Total Amount:',
+                                                'AED ${currentWinningTicket['matched_price']}',
+                                                isHighlighted: true,
+                                              ),
+                                              _buildDetailRow(
+                                                'Draw Date:',
+                                                currentWinningTicket['draw_date']?.toString().split(' ')[0] ?? 'N/A',
+                                              ),
+                                              // Add matched numbers if available
+                                              // if (currentWinningTicket['matched_numbers'] != null)
+                                              //   _buildDetailRow(
+                                              //     'Matched Numbers:',
+                                              //     currentWinningTicket['matched_numbers']?.toString() ?? 'N/A',
+                                              //   ),
+                                            ],
+                                          ),
                                         ),
-                                        SizedBox(height: 16.h),
-
-                                        // Pay Now Button or Paid Status
-                                        if (isPaid ||
-                                            matched['order_status']?.toString().toLowerCase() == '1' ||
-                                            matched['payment_status']?.toString().toLowerCase() == 'completed')
-                                          Container(
-                                            width: double.infinity,
-                                            padding: EdgeInsets.all(16.w),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(12.r),
-                                              border: Border.all(color: Colors.green.withOpacity(0.3)),
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Icon(Icons.check_circle, color: Colors.green, size: 24.sp),
-                                                SizedBox(width: 12.w),
-                                                AppText(
-                                                  'Payment Completed',
-                                                  fontSize: 16.sp,
-                                                  color: Colors.green,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        else
-                                          PrimaryButton(
-                                            isLoading: ticket.isLoading,
-                                            onTap: () async {
-                                              await handlePayment(ticket, matched);
-                                            },
-                                            title: 'Pay Now',
-                                          ),
-
-                                        SizedBox(height: 24.h),
                                       ],
                                     );
-                                  }).toList() ??
-                                  [AppText("No matched tickets found")],
+                                  },
+                                ),
+                              ),
+                              SizedBox(height: 24.h),
+
+                              // ✅ Single payment button for all tickets with total amount
+                              if (isOrderPaid)
+                                Container(
+                                  width: double.infinity,
+                                  padding: EdgeInsets.all(16.w),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12.r),
+                                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.check_circle, color: Colors.green, size: 24.sp),
+                                      SizedBox(width: 12.w),
+                                      AppText(
+                                        'All Payments Completed',
+                                        fontSize: 16.sp,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                PrimaryButton(
+                                  isLoading: isPaymentProcessing,
+                                  onTap: () async => await handleBulkPayment(ticket, winningTickets),
+                                  title:
+                                      winningTickets.length > 1
+                                          ? 'Pay All (${winningTickets.length} tickets) - AED ${totalMatchedPrice.toStringAsFixed(2)}'
+                                          : 'Pay Now - AED ${totalMatchedPrice.toStringAsFixed(2)}',
+                                ),
+
+                              SizedBox(height: 24.h),
                             ],
                           ),
                         ),
-                      ),
-
-                    if (!ticket.isLoading && ticket.clickTicketData == null) SizedBox(),
-                  ],
-                );
-              },
-            ),
-          ),
-
-          // Invoice overlay
-          if (showInvoice && invoiceData != null)
-            GestureDetector(
-              onTap: hideInvoice,
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-                width: double.infinity,
-                height: double.infinity,
-                child: SlideTransition(
-                  position: printSlideAnimation,
-                  child: SlideTransition(
-                    position: slideAnimation,
-                    child: FadeTransition(
-                      opacity: fadeAnimation,
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(24.r),
-                              topRight: Radius.circular(24.r),
+                      if (ticket.clickTicketData != null && winningTickets.isEmpty && !ticket.isLoading)
+                        Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.info_outline, size: 50.sp, color: Colors.grey[400]),
+                                SizedBox(height: 16.h),
+                                AppText(
+                                  'No Winning Tickets Found',
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[600],
+                                ),
+                                SizedBox(height: 8.h),
+                                AppText(
+                                  'This order does not contain any winning tickets.',
+                                  fontSize: 14.sp,
+                                  color: Colors.grey[500],
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                margin: EdgeInsets.only(top: 12.h),
-                                width: 40.w,
-                                height: 4.h,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  borderRadius: BorderRadius.circular(2.r),
-                                ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            if (showInvoice && invoiceData != null)
+              GestureDetector(
+                onTap: isPrinting ? null : hideInvoice,
+                child: Stack(
+                  children: [
+                    if (isPrinting) BottomNavigationBarPage(),
+                    SlideTransition(
+                      position: printAnimation,
+                      child: SlideTransition(
+                        position: slideAnimation,
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(24.r),
+                                topRight: Radius.circular(24.r),
                               ),
-                              Container(
-                                padding: EdgeInsets.all(20.w),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    AppText('Winning Receipt', fontSize: 20.sp, fontWeight: FontWeight.bold),
-                                    GestureDetector(
-                                      onTap: hideInvoice,
-                                      child: Icon(Icons.close, size: 24.sp, color: Colors.grey[600]),
-                                    ),
-                                  ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  margin: EdgeInsets.only(top: 12.h),
+                                  width: 40.w,
+                                  height: 4.h,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(2.r),
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                child: RepaintBoundary(
-                                  key: invoiceKey,
+                                Container(
+                                  padding: EdgeInsets.all(20.w),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      AppText('Payment Receipt', fontSize: 20.sp, fontWeight: FontWeight.bold),
+                                      GestureDetector(
+                                        onTap: isPrinting ? null : hideInvoice,
+                                        child: Icon(Icons.close, size: 24.sp, color: Colors.grey[600]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
                                   child: SingleChildScrollView(
                                     padding: EdgeInsets.symmetric(horizontal: 20.w),
                                     child: Column(
@@ -635,7 +697,7 @@ class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
                                             borderRadius: BorderRadius.circular(8.r),
                                           ),
                                           child: AppText(
-                                            '🎉 Click-2 Winner! 🎉',
+                                            '🎉 Click-2 Winner${invoiceData!['ticketCount'] > 1 ? 's' : ''}! 🎉',
                                             fontSize: 18.sp,
                                             fontWeight: FontWeight.bold,
                                             textAlign: TextAlign.center,
@@ -651,140 +713,31 @@ class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
                                           ),
                                           child: Column(
                                             children: [
-                                              infoRow(
-                                                'Ticket ID:',
-                                                invoiceData?['ticket']['ticket_id'].toString() ?? "",
-                                              ),
+                                              infoRow('Order Number:', invoiceData!['orderNumber'].toString()),
                                               Divider(),
                                               infoRow(
-                                                'Product:',
-                                                invoiceData?['ticket']['product_name'].toString() ?? "",
+                                                'Purchased By:',
+                                                _extractCandidateName(invoiceData!['tickets'][0]),
                                               ),
                                               Divider(),
-                                              infoRow(
-                                                'Candidate:',
-                                                invoiceData?['ticket']['candidate']['name'].toString() ?? "",
-                                              ),
+                                              infoRow('Winning Tickets:', '${invoiceData!['ticketCount']}'),
                                               Divider(),
                                               infoRow(
-                                                'Order Date:',
-                                                invoiceData?['ticket']['order_date'].toString() ?? "".split(' ')[0],
+                                                'Total Amount:',
+                                                'AED ${invoiceData!['totalAmount'].toStringAsFixed(2)}',
+                                                isHighlighted: true,
                                               ),
                                               Divider(),
                                               infoRow(
                                                 'Draw Date:',
-                                                invoiceData!['ticket']['draw_date'].toString().split(' ')[0],
+                                                invoiceData!['tickets'][0]['draw_date'].toString().split(' ')[0],
                                               ),
                                               Divider(),
-                                              infoRow(
-                                                'Prize Amount:',
-                                                'AED ${invoiceData!['ticket']['matched_price']}',
-                                                isHighlighted: true,
-                                              ),
+                                              infoRow('Payment Date:', DateTime.now().toString().split(' ')[0]),
                                             ],
                                           ),
                                         ),
                                         SizedBox(height: 24.h),
-
-                                        // Show numbers
-                                        Container(
-                                          padding: EdgeInsets.all(16.w),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[100],
-                                            borderRadius: BorderRadius.circular(12.r),
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              AppText('Your Numbers', fontSize: 16.sp, fontWeight: FontWeight.bold),
-                                              SizedBox(height: 8.h),
-                                              Wrap(
-                                                spacing: 8.w,
-                                                runSpacing: 8.h,
-                                                children:
-                                                    (invoiceData!['ticket']['numbers'] is String
-                                                            ? (invoiceData!['ticket']['numbers'] as String)
-                                                                .split(',')
-                                                                .map((e) => int.tryParse(e.trim()) ?? 0)
-                                                                .toList()
-                                                            : (invoiceData!['ticket']['numbers'] as List<dynamic>? ??
-                                                                []))
-                                                        .map((number) {
-                                                          return Container(
-                                                            width: 35.w,
-                                                            height: 35.h,
-                                                            decoration: BoxDecoration(
-                                                              shape: BoxShape.circle,
-                                                              border: Border.all(color: Colors.grey),
-                                                            ),
-                                                            child: Center(
-                                                              child: AppText(
-                                                                number.toString().padLeft(2, '0'),
-                                                                fontSize: 12.sp,
-                                                                fontWeight: FontWeight.bold,
-                                                              ),
-                                                            ),
-                                                          );
-                                                        })
-                                                        .toList(),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        SizedBox(height: 16.h),
-
-                                        Container(
-                                          padding: EdgeInsets.all(16.w),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green[50],
-                                            borderRadius: BorderRadius.circular(12.r),
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              AppText(
-                                                'Winning Numbers',
-                                                fontSize: 16.sp,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.green[800],
-                                              ),
-                                              SizedBox(height: 8.h),
-                                              Wrap(
-                                                spacing: 8.w,
-                                                runSpacing: 8.h,
-                                                children:
-                                                    (invoiceData!['ticket']['matched_numbers'] is String
-                                                            ? (invoiceData!['ticket']['matched_numbers'] as String)
-                                                                .split(',')
-                                                                .map((e) => int.tryParse(e.trim()) ?? 0)
-                                                                .toList()
-                                                            : (invoiceData!['ticket']['matched_numbers']
-                                                                    as List<dynamic>? ??
-                                                                []))
-                                                        .map((number) {
-                                                          return Container(
-                                                            width: 35.w,
-                                                            height: 35.h,
-                                                            decoration: BoxDecoration(
-                                                              shape: BoxShape.circle,
-                                                              color: Colors.green,
-                                                            ),
-                                                            child: Center(
-                                                              child: AppText(
-                                                                number.toString().padLeft(2, '0'),
-                                                                fontSize: 12.sp,
-                                                                fontWeight: FontWeight.bold,
-                                                                color: Colors.white,
-                                                              ),
-                                                            ),
-                                                          );
-                                                        })
-                                                        .toList(),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        SizedBox(height: 24.h),
-
-                                        // Congratulations message
                                         Container(
                                           padding: EdgeInsets.all(16.w),
                                           decoration: BoxDecoration(
@@ -792,14 +745,13 @@ class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
                                             borderRadius: BorderRadius.circular(12.r),
                                           ),
                                           child: AppText(
-                                            "🎉 Congratulations! You are a winner! Keep playing for more chances to win! 🎉",
+                                            "🎉 Congratulations! You have ${invoiceData!['ticketCount']} winning ticket${invoiceData!['ticketCount'] > 1 ? 's' : ''}! Keep playing for more chances to win! 🎉",
                                             fontSize: 14.sp,
                                             color: Colors.orange[800],
                                             textAlign: TextAlign.center,
                                           ),
                                         ),
                                         SizedBox(height: 16.h),
-
                                         AppText(
                                           'Website: https://foryouwin.com/user/login',
                                           fontSize: 12.sp,
@@ -807,9 +759,7 @@ class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
                                           textAlign: TextAlign.center,
                                         ),
                                         SizedBox(height: 24.h),
-
-                                        // Show printing status
-                                        if (isPrinting) ...[
+                                        if (isPrinting)
                                           Container(
                                             padding: EdgeInsets.all(16.w),
                                             decoration: BoxDecoration(
@@ -838,22 +788,40 @@ class _ClickPageState extends State<ClickPage> with TickerProviderStateMixin {
                                               ],
                                             ),
                                           ),
-                                          SizedBox(height: 24.h),
-                                        ],
+                                        SizedBox(height: 24.h),
                                       ],
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build detail row (same as ForYouPage)
+  Widget _buildDetailRow(String title, String value, {bool isHighlighted = false}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6.h),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          AppText(title, fontSize: 14.sp, fontWeight: FontWeight.w500),
+          AppText(
+            value,
+            fontSize: 14.sp,
+            fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+            color: isHighlighted ? Colors.green[700] : Colors.black,
+          ),
         ],
       ),
     );

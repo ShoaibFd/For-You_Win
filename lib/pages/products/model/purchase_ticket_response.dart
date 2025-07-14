@@ -21,7 +21,7 @@ class PurchaseTicketModel {
 }
 
 class Ticket {
-  final List<int> numbers;
+  final List<String> numbers;
   final List<String> gameTypes;
 
   Ticket({required this.numbers, required this.gameTypes});
@@ -31,9 +31,27 @@ class Ticket {
   }
 
   factory Ticket.fromJson(Map<String, dynamic> json) {
+    final rawNumbers = json['numbers'];
+
+    List<String> parsedNumbers = [];
+
+    if (rawNumbers is List && rawNumbers.isNotEmpty) {
+      final first = rawNumbers.first;
+      if (first is String) {
+        // Handle case like: ["08, 05, 20, 12, 07, 09"]
+        parsedNumbers = first.split(',').map((e) => e.trim().padLeft(2, '0')).toList();
+      } else if (first is int) {
+        // Handle direct list of ints: [8, 5, 20]
+        parsedNumbers = rawNumbers.map((e) => e.toString().padLeft(2, '0')).toList();
+      } else if (first is String) {
+        // Already list of strings: ["08", "05", "20"]
+        parsedNumbers = rawNumbers.map((e) => e.toString().padLeft(2, '0')).toList();
+      }
+    }
+
     return Ticket(
-      numbers: (json['numbers'] as List<dynamic>?)?.map((number) => number as int).toList() ?? [],
-      gameTypes: (json['game_types'] as List<dynamic>?)?.map((gameType) => gameType.toString()).toList() ?? [],
+      numbers: parsedNumbers,
+      gameTypes: (json['game_types'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
     );
   }
 }

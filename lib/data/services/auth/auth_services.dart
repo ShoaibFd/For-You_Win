@@ -54,6 +54,7 @@ class AuthServices with ChangeNotifier {
       final responseData = jsonDecode(response.body);
       if (response.statusCode == 200 || response.statusCode == 201) {
         await _sharedPrefs.saveToken(responseData['token']);
+        await _sharedPrefs.saveName(responseData['user']['name']);
 
         Get.offAll(() => BottomNavigationBarPage());
         AppSnackbar.showSuccessSnackbar(responseData['message']);

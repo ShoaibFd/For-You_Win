@@ -26,7 +26,21 @@ class AppDrawer extends StatefulWidget {
 class _AppDrawerState extends State<AppDrawer> {
   bool _showGameOptions = false;
   final SharedPrefs _sharedPrefs = SharedPrefs();
+  String? userName;
+  @override
+  void initState() {
+    super.initState();
+    _loadName();
+  }
 
+  void _loadName() async {
+    final name = await _sharedPrefs.getName();
+    setState(() {
+      userName = name;
+    });
+  }
+
+  Map<String, dynamic>? invoiceData;
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -34,10 +48,27 @@ class _AppDrawerState extends State<AppDrawer> {
         children: [
           // Logo Section!
           Container(
-            height: 100.h,
+            height: 140.h,
             width: double.maxFinite,
             color: primaryColor,
-            child: Image.asset('assets/images/logo.png', height: 50.h),
+            child: Column(
+              children: [
+                Image.asset('assets/images/logo.png', height: 100.h),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: Row(
+                    spacing: 10.w,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: blackColor,
+                        child: Center(child: Icon(Icons.person_2_rounded, color: whiteColor)),
+                      ),
+                      AppText('$userName'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           // Dashboard Button!
           ListTile(
@@ -79,6 +110,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
+                  Get.back();
                   Get.to(() => RoyalPage());
                 },
                 leading: Image.asset('assets/images/premium.png', height: 30.h),
@@ -90,6 +122,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
+                  Get.back();
                   Get.to(() => ForYouPage());
                 },
                 leading: Image.asset('assets/images/star.png', height: 30.h),
@@ -101,6 +134,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
+                  Get.back();
                   Get.to(() => MegaPage());
                 },
                 leading: Image.asset('assets/images/trophy.png', height: 30.h),
@@ -112,6 +146,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
+                  Get.back();
                   Get.to(() => ThrillPage());
                 },
                 leading: Image.asset('assets/images/star.png', height: 30.h),
@@ -123,6 +158,7 @@ class _AppDrawerState extends State<AppDrawer> {
               padding: EdgeInsets.only(left: 50.w),
               child: ListTile(
                 onTap: () {
+                  Get.back();
                   Get.to(() => ClickPage());
                 },
                 leading: Image.asset('assets/images/star.png', height: 30.h),
@@ -133,6 +169,7 @@ class _AppDrawerState extends State<AppDrawer> {
           // Invoice Button!
           ListTile(
             onTap: () {
+              Get.back();
               Get.to(() => InvoicePage());
             },
             leading: Image.asset('assets/images/invoice.png', height: 26.h),
@@ -170,12 +207,9 @@ class _AppDrawerState extends State<AppDrawer> {
               ),
               onPressed: () async {
                 Get.back();
-
-                // Show loading
                 Get.dialog(const AppLoading(), barrierDismissible: false);
-
-                // Remove token
                 await _sharedPrefs.removeToken();
+                await _sharedPrefs.removeName();
                 await Future.delayed(const Duration(seconds: 2));
                 Get.offAll(() => LoginPage());
               },

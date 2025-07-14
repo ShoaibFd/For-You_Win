@@ -18,6 +18,7 @@ class TicketServices with ChangeNotifier {
 
   CheckTicketResponse? get checkTicketResponse => _checkTicketResponse;
   String? get error => errorMessage;
+
   Map<String, dynamic>? _royalTicketData;
   Map<String, dynamic>? get royalTicketData => _royalTicketData;
 
@@ -33,7 +34,29 @@ class TicketServices with ChangeNotifier {
   Map<String, dynamic>? _clickTicketData;
   Map<String, dynamic>? get clickTicketData => _clickTicketData;
 
-  // Royal Ticket Search Function!!
+  // Clear all data for all ticket-related functions and screens
+  void clearData() {
+    _royalTicketData = null;
+    _foryouTicketData = null;
+    _megaTicketData = null;
+    _thrillTicketData = null;
+    _clickTicketData = null;
+    _checkTicketResponse = null;
+    _isLoading = false;
+    errorMessage = null;
+    notifyListeners();
+    log('🧹 Cleared all ticket data, checkTicketResponse, isLoading, and errorMessage');
+  }
+
+  // Clear Thrill-3 ticket data (retained for specific use)
+  void clearThrillTicketData() {
+    _thrillTicketData = null;
+    _isLoading = false;
+    notifyListeners();
+    log('🧹 Cleared thrillTicketData and isLoading');
+  }
+
+  // Royal Ticket Search Function
   Future<void> royalTicketSearch(String orderNumber) async {
     try {
       _isLoading = true;
@@ -48,26 +71,27 @@ class TicketServices with ChangeNotifier {
 
       log("Royal ticket response: ${response.body}");
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+      final Map<String, dynamic> responseData = jsonDecode(response.body); // ✅ moved outside
 
+      if (response.statusCode == 200) {
         if (responseData['status'] == 'success') {
           _royalTicketData = responseData;
 
           if (responseData['has_winners'] == true) {
             AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
           } else {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'No winners, but data fetched successfully!');
+            AppSnackbar.showInfoSnackbar(responseData['message'] ?? 'No winning tickets found.');
           }
         } else {
           _royalTicketData = null;
-          AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
+          AppSnackbar.showInfoSnackbar(responseData['message'] ?? 'No ticket found!');
         }
       } else if (response.statusCode == 404) {
-        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
+        AppSnackbar.showInfoSnackbar(responseData['message'] ?? 'Ticket not found');
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _royalTicketData = null;
+        AppSnackbar.showErrorSnackbar('Failed to fetch ticket. Status code: ${response.statusCode}');
       }
     } catch (e) {
       log("Ticket fetch error: $e");
@@ -79,7 +103,7 @@ class TicketServices with ChangeNotifier {
     }
   }
 
-  // For you Ticket Search!!
+  // For You Ticket Search
   Future<void> forYouTicketSearch(String orderNumber) async {
     try {
       _isLoading = true;
@@ -91,24 +115,22 @@ class TicketServices with ChangeNotifier {
         Uri.parse('$foryouTicketUrl/$orderNumber'),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
-
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-
         if (responseData['success'] == true) {
           _foryouTicketData = responseData;
 
           if (responseData['hasWinners'] == true) {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           } else {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'Data fetched successfully!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           }
         } else {
           _foryouTicketData = null;
-          AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
+          AppSnackbar.showInfoSnackbar(responseData['message']);
         }
       } else if (response.statusCode == 404) {
-        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
+        AppSnackbar.showInfoSnackbar(responseData['message']);
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _foryouTicketData = null;
@@ -123,7 +145,7 @@ class TicketServices with ChangeNotifier {
     }
   }
 
-  // Mega Ticket Search!!
+  // Mega Ticket Search
   Future<void> megaTicketSearch(String orderNumber) async {
     try {
       _isLoading = true;
@@ -136,23 +158,22 @@ class TicketServices with ChangeNotifier {
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-
         if (responseData['success'] == true) {
           _megaTicketData = responseData;
 
           if (responseData['hasWinners'] == true) {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           } else {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'Data fetched successfully!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           }
         } else {
           _megaTicketData = null;
-          AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
+          AppSnackbar.showInfoSnackbar(responseData['message']);
         }
       } else if (response.statusCode == 404) {
-        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
+        AppSnackbar.showInfoSnackbar(responseData['message']);
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _megaTicketData = null;
@@ -167,7 +188,7 @@ class TicketServices with ChangeNotifier {
     }
   }
 
-  // Thrill-3 Ticket Search!!
+  // Thrill-3 Ticket Search
   Future<void> thrillTicketSearch(String orderNumber) async {
     try {
       _isLoading = true;
@@ -180,25 +201,22 @@ class TicketServices with ChangeNotifier {
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-
-        // Updated to handle the direct response structure
         if (responseData['status'] == true) {
           _thrillTicketData = responseData;
 
-          // Display appropriate message based on whether there are winners
           if (responseData['has_winners'] == true) {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           } else {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'Data fetched successfully!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           }
         } else {
           _thrillTicketData = null;
-          AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
+          AppSnackbar.showInfoSnackbar(responseData['message']);
         }
       } else if (response.statusCode == 404) {
-        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
+        AppSnackbar.showInfoSnackbar(responseData['message']);
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _thrillTicketData = null;
@@ -213,7 +231,7 @@ class TicketServices with ChangeNotifier {
     }
   }
 
-  // Click-2 Ticket Search!!
+  // Click-2 Ticket Search
   Future<void> clickTicketSearch(String orderNumber) async {
     try {
       _isLoading = true;
@@ -226,23 +244,22 @@ class TicketServices with ChangeNotifier {
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-
         if (responseData['success'] == true) {
           _clickTicketData = responseData;
 
           if (responseData['has_winners'] == true) {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'You have winning tickets!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           } else {
-            AppSnackbar.showSuccessSnackbar(responseData['message'] ?? 'Data fetched successfully!');
+            AppSnackbar.showSuccessSnackbar(responseData['message']);
           }
         } else {
           _clickTicketData = null;
-          AppSnackbar.showErrorSnackbar(responseData['message'] ?? 'No ticket found!');
+          AppSnackbar.showInfoSnackbar(responseData['message']);
         }
       } else if (response.statusCode == 404) {
-        AppSnackbar.showInfoSnackbar('Winning numbers not announced for this draw');
+        AppSnackbar.showInfoSnackbar(responseData['message']);
       } else {
         log("Ticket fetch failed: ${response.statusCode}");
         _clickTicketData = null;
@@ -268,7 +285,6 @@ class TicketServices with ChangeNotifier {
         body: {'matched_price': price},
         headers: {'Authorization': 'Bearer $token'},
       );
-      // Successful Response!!
       log('Response in Pay Ticket: ${response.statusCode}, ${response.body}');
       log('Order Number: $ticketNumber and Price: $price');
       final jsonData = jsonDecode(response.body);
@@ -280,13 +296,13 @@ class TicketServices with ChangeNotifier {
       }
     } catch (e) {
       log("Payment error: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
-  // Check Ticket Function!!
+  // Check Ticket Function
   Future<CheckTicketResponse?> checkTicket(String orderNumber) async {
     try {
       final token = await _sharedPrefs.getToken();

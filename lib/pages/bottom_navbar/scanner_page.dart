@@ -1,12 +1,9 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:for_u_win/components/app_loading.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
 import 'package:for_u_win/core/constants/app_colors.dart';
-import 'package:for_u_win/data/models/tickets/check_ticket_response.dart';
 import 'package:for_u_win/pages/tickets/click_page.dart';
 import 'package:for_u_win/pages/tickets/foryou_page.dart';
 import 'package:for_u_win/pages/tickets/info_page.dart';
@@ -15,6 +12,7 @@ import 'package:for_u_win/pages/tickets/royal_page.dart';
 import 'package:for_u_win/pages/tickets/thrill_page.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -25,21 +23,62 @@ class ScannerPage extends StatefulWidget {
 
 class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   bool _isScanned = false;
-  bool _isScannerReady = false; // Add this flag
-  final MobileScannerController _controller = MobileScannerController();
+  bool _isScannerReady = false;
+  bool _hasPermission = false;
+  MobileScannerController? _controller;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Add delay before enabling scanner
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
+    _initializeScanner();
+  }
+
+  Future<void> _initializeScanner() async {
+    try {
+      // Check camera permission status
+      final status = await Permission.camera.status;
+      if (status.isGranted) {
         setState(() {
-          _isScannerReady = true;
+          _hasPermission = true;
+          _controller = MobileScannerController();
         });
+        // Delay to ensure controller is ready
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (mounted) {
+          setState(() {
+            _isScannerReady = true;
+          });
+        }
+      } else {
+        // Request permission if not granted
+        final newStatus = await Permission.camera.request();
+        if (newStatus.isGranted) {
+          setState(() {
+            _hasPermission = true;
+            _controller = MobileScannerController();
+          });
+          await Future.delayed(const Duration(milliseconds: 1500));
+          if (mounted) {
+            setState(() {
+              _isScannerReady = true;
+            });
+          }
+        } else {
+          setState(() {
+            _hasPermission = false;
+            _errorMessage = 'Camera permission is required to scan QR codes.';
+          });
+        }
       }
-    });
+    } catch (e) {
+      log("Error initializing scanner: $e");
+      setState(() {
+        _hasPermission = false;
+        _errorMessage = 'Failed to initialize scanner. Please try again.';
+      });
+    }
   }
 
   @override
@@ -53,13 +92,11 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Reset scanner when app comes back to foreground
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && _hasPermission) {
       setState(() {
         _isScanned = false;
         _isScannerReady = false;
       });
-      // Re-enable scanner after a short delay
       Future.delayed(const Duration(milliseconds: 1000), () {
         if (mounted) {
           setState(() {
@@ -73,8 +110,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   Future<void> _handleQRCode(String code) async {
     log("Scanned code: $code");
 
-    // Prevent duplicate scanning and ensure scanner is ready
-    if (_isScanned || !_isScannerReady) return;
+    if (_isScanned || !_isScannerReady || !_hasPermission) return;
 
     setState(() => _isScanned = true);
 
@@ -83,8 +119,9 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     try {
       String? productName;
       String? ticketId;
+      String? orderDate;
 
-      // Handle the new format: Order:11504|Product:Click-2|Date:11 Jun 2025
+      // Parse QR code in format: Order:11504|Product:Click-2|Date:11 Jun 2025
       if (code.contains('Product:')) {
         final parts = code.split('|');
         for (var part in parts) {
@@ -92,6 +129,8 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             productName = part.split(':')[1].trim();
           } else if (part.startsWith('Order:')) {
             ticketId = part.split(':')[1].trim();
+          } else if (part.startsWith('Date:')) {
+            orderDate = part.split(':')[1].trim();
           }
         }
       }
@@ -99,20 +138,21 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       if (productName != null && productName.isNotEmpty) {
         Get.back(); // Close loading dialog
 
-        // Navigate directly to the correct page
-        final result = await Get.to(
+        await Get.to(
           () => _getPageBasedOnProductName(productName),
-          arguments: {'ticket_id': ticketId ?? '', 'has_winners': false, 'product_name': productName},
+          arguments: {
+            'ticket_id': ticketId ?? '',
+            'has_winners': false,
+            'product_name': productName,
+            'order_date': orderDate ?? '',
+          },
         );
 
-        // Reset scanner state when returning from navigation
         if (mounted) {
           setState(() {
             _isScanned = false;
             _isScannerReady = false;
           });
-
-          // Re-enable scanner after delay
           Future.delayed(const Duration(milliseconds: 1000), () {
             if (mounted) {
               setState(() {
@@ -140,9 +180,8 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       _isScannerReady = false;
     });
 
-    // Re-enable scanner after delay
     Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
+      if (mounted && _hasPermission) {
         setState(() {
           _isScannerReady = true;
         });
@@ -150,108 +189,101 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     });
   }
 
-  void _navigateBasedOnProductName(String ticketId, CheckTicketResponse? response) {
-    String? productName;
-    String? message = response?.message;
-
-    if (response != null) {
-      if (response.status == "success") {
-        productName = response.data?.productName;
-        log("Success: Product name from data: $productName");
-      } else if (response.status == "error") {
-        productName = response.errors?.productName;
-        log("Error: Product name from errors object: $productName");
-
-        if (productName == null && message != null) {
-          RegExp regex = RegExp(r'for ([A-Za-z0-9]+-\d+)');
-          Match? match = regex.firstMatch(message);
-
-          if (match != null) {
-            productName = match.group(1);
-            log("Extracted product name from error message: $productName");
-          } else {
-            log("Could not extract product name from error message: $message");
-
-            // Try another regex pattern for different message formats
-            RegExp altRegex = RegExp(r'([A-Za-z0-9]+-\d+)');
-            Match? altMatch = altRegex.firstMatch(message);
-            if (altMatch != null) {
-              productName = altMatch.group(1);
-              log("Extracted product name with alternative regex: $productName");
-            }
-          }
-        }
-      }
-    }
-
-    log("Final product name for navigation: $productName");
-    Widget destinationPage = _getPageBasedOnProductName(productName);
-
-    AppSnackbar.showInfoSnackbar(message ?? 'Winning numbers not announced for this ticket today.');
-
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      Get.to(
-        () => destinationPage,
-        arguments: {
-          'ticket_id': ticketId,
-          'tickets': response?.data,
-          'has_winners': false,
-          'product_name': productName,
-        },
-      );
-    });
-  }
-
   Widget _getPageBasedOnProductName(String? productName) {
     log("Getting page for product name: $productName");
 
     if (productName == null) {
-      return InfoPage();
+      return const InfoPage();
     }
 
     switch (productName.toLowerCase()) {
       case 'click-2':
-        return ClickPage();
+        return const ClickPage();
       case 'thrill-3':
-        return ThrillPage();
+        return const ThrillPage();
       case 'mega-4':
-        return MegaPage();
+        return const MegaPage();
       case '4uwin-5':
-        return ForYouPage();
+        return const ForYouPage();
       case 'royal-6':
-        return RoyalPage();
-
+        return const RoyalPage();
       default:
-        return InfoPage();
+        return const InfoPage();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_errorMessage != null || !_hasPermission) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _errorMessage ?? 'Camera permission is required to scan QR codes.',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  final status = await Permission.camera.request();
+                  if (status.isGranted) {
+                    setState(() {
+                      _hasPermission = true;
+                      _errorMessage = null;
+                      _controller = MobileScannerController();
+                    });
+                    await Future.delayed(const Duration(milliseconds: 1500));
+                    if (mounted) {
+                      setState(() {
+                        _isScannerReady = true;
+                      });
+                    }
+                  } else {
+                    openAppSettings();
+                  }
+                },
+                child: const Text('Grant Permission'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_isScannerReady || _controller == null) {
+      return Scaffold(backgroundColor: Colors.black, body: const Center(child: AppLoading()));
+    }
+
     return Scaffold(
       backgroundColor: secondaryColor,
       appBar: AppBar(
         actions: [
-          IconButton(icon: const Icon(Icons.flash_on, color: Colors.white), onPressed: () => _controller.toggleTorch()),
+          IconButton(
+            icon: const Icon(Icons.flash_on, color: Colors.white),
+            onPressed: () => _controller?.toggleTorch(),
+          ),
           IconButton(
             icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
-            onPressed: () => _controller.switchCamera(),
+            onPressed: () => _controller?.switchCamera(),
           ),
         ],
       ),
       body: Stack(
         children: [
           MobileScanner(
-            controller: _controller,
+            controller: _controller!,
             onDetect: (capture) {
-              // Only process QR codes if scanner is ready and not already scanned
               if (!_isScanned && _isScannerReady) {
                 final code = capture.barcodes.first.rawValue;
                 if (code != null) {
@@ -289,7 +321,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
               padding: const EdgeInsets.only(top: 60),
               child: Text(
                 _isScannerReady ? 'Position QR code within the frame' : 'Preparing scanner...',
-                style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -301,7 +333,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   }
 }
 
-// Scan line animation
 class _ScanningAnimation extends StatefulWidget {
   @override
   State<_ScanningAnimation> createState() => _ScanningAnimationState();

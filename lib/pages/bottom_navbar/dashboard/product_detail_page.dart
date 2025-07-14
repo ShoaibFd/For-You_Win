@@ -418,11 +418,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       children: [
         pw.Container(
           padding: const pw.EdgeInsets.all(12),
-          child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+          child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 23)),
         ),
         pw.Container(
           padding: const pw.EdgeInsets.all(12),
-          child: pw.Text(value, style: const pw.TextStyle(fontSize: 12)),
+          child: pw.Text(value, style: const pw.TextStyle(fontSize: 23)),
         ),
       ],
     );

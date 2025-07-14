@@ -8,13 +8,17 @@ import 'package:for_u_win/data/services/dashboard/dashboard_services.dart';
 import 'package:for_u_win/data/services/invoice/invoice_services.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
 import 'package:for_u_win/data/services/tickets/ticket_services.dart';
+import 'package:for_u_win/pages/restriction/restriction_page.dart';
 import 'package:for_u_win/pages/splash/splash_page.dart';
-import 'package:get/get_navigation/src/root/get_material_app.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:timezone/data/latest.dart' as tz;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
+
   runApp(
     MultiProvider(
       providers: [
@@ -25,13 +29,23 @@ void main() {
         ChangeNotifierProvider(create: (_) => QuantityProvider()),
         ChangeNotifierProvider(create: (_) => InvoiceServices()),
       ],
-      child: MyApp(),
+      child: const MyApp(),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +58,13 @@ class MyApp extends StatelessWidget {
           child: GetMaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'For-U-Win',
+            defaultTransition: Transition.rightToLeft,
+            transitionDuration: const Duration(milliseconds: 200),
             theme: ThemeData(
-              appBarTheme: AppBarTheme(backgroundColor: secondaryColor, centerTitle: true),
+              appBarTheme: const AppBarTheme(backgroundColor: secondaryColor, centerTitle: true),
               textTheme: GoogleFonts.poppinsTextTheme(),
             ),
-            home: const SplashPage(),
+            home: const RestrictedTimePage(child: SplashPage()),
           ),
         );
       },
