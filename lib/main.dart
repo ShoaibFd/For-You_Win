@@ -8,7 +8,7 @@ import 'package:for_u_win/data/services/dashboard/dashboard_services.dart';
 import 'package:for_u_win/data/services/invoice/invoice_services.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
 import 'package:for_u_win/data/services/tickets/ticket_services.dart';
-import 'package:for_u_win/pages/restriction/restriction_page.dart';
+import 'package:for_u_win/pages/restriction/app_life_cycle_manager.dart';
 import 'package:for_u_win/pages/splash/splash_page.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,7 +18,7 @@ import 'package:timezone/data/latest.dart' as tz;
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
-
+  AppLifecycleManager().init();
   runApp(
     MultiProvider(
       providers: [
@@ -34,18 +34,8 @@ void main() {
   );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +54,7 @@ class _MyAppState extends State<MyApp> {
               appBarTheme: const AppBarTheme(backgroundColor: secondaryColor, centerTitle: true),
               textTheme: GoogleFonts.poppinsTextTheme(),
             ),
-            home: const RestrictedTimePage(child: SplashPage()),
+            home: SplashPage(),
           ),
         );
       },

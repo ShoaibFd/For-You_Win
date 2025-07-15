@@ -24,7 +24,13 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
   late final NavigationController navigationController;
 
   // List Of Pages!
-  final List<Widget> pages = [ProductsPage(), ScannerPage(), DashboardPage()];
+  List<Widget> get pages {
+    return [
+      const ProductsPage(),
+      if (currentIndex == 1) const ScannerPage() else const SizedBox.shrink(),
+      const DashboardPage(),
+    ];
+  }
 
   @override
   void initState() {

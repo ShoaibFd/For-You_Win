@@ -5,7 +5,7 @@ import 'package:for_u_win/pages/bottom_navbar/bottom_navbar.dart';
 import 'package:for_u_win/pages/restriction/restriction_page.dart';
 import 'package:for_u_win/storage/shared_prefs.dart';
 import 'package:get/get.dart';
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -21,23 +21,37 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    tz.initializeTimeZones();
-
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
 
-    Future.delayed(const Duration(seconds: 2), _checkLoginStatus);
+    Future.delayed(const Duration(seconds: 2), () {
+      _checkLoginStatus();
+    });
   }
 
   Future<void> _checkLoginStatus() async {
-    final token = await _sharedPrefs.getToken();
-    Widget destination;
-    if (token != null && token.isNotEmpty) {
-      destination = const BottomNavigationBarPage();
-    } else {
-      destination = const LoginPage();
+    if (isRestrictedTimeDubai()) {
+      Get.offAll(() => const RestrictedTimePage());
+      return;
     }
-    // Wrap the destination with RestrictedTimePage
-    Get.offAll(() => RestrictedTimePage(child: destination));
+
+    final token = await _sharedPrefs.getToken();
+    if (token != null && token.isNotEmpty) {
+      Get.offAll(() => const BottomNavigationBarPage());
+    } else {
+      Get.offAll(() => LoginPage());
+    }
+  }
+
+  bool isRestrictedTimeDubai() {
+    final now = dubaiNow();
+    final start = tz.TZDateTime(now.location, now.year, now.month, now.day, 22, 45);
+    final end = tz.TZDateTime(now.location, now.year, now.month, now.day, 23, 15);
+    return now.isAfter(start) && now.isBefore(end);
+  }
+
+  tz.TZDateTime dubaiNow() {
+    final dubai = tz.getLocation('Asia/Dubai');
+    return tz.TZDateTime.now(dubai);
   }
 
   @override
