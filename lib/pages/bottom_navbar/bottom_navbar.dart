@@ -23,7 +23,6 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
   late int currentIndex;
   late final NavigationController navigationController;
 
-  // List Of Pages!
   List<Widget> get pages {
     return [
       const ProductsPage(),
@@ -36,12 +35,11 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
-    // Make sure NavigationController is initialized
+
     if (!Get.isRegistered<NavigationController>()) {
       Get.put(NavigationController());
     }
     navigationController = Get.find<NavigationController>();
-    // Set initial index in controller
     navigationController.changeIndex(widget.initialIndex);
   }
 
@@ -52,6 +50,123 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
     navigationController.changeIndex(index);
   }
 
+  Future<bool> _showExitDialog() async {
+    final TextEditingController passwordController = TextEditingController();
+    ValueNotifier<bool> errorNotifier = ValueNotifier<bool>(false);
+
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              elevation: 16,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+              titlePadding: EdgeInsets.only(top: 28.h, left: 24.w, right: 24.w, bottom: 0),
+              contentPadding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 8.h),
+              actionsPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 12.h),
+              title: Column(
+                children: [
+                  Icon(Icons.lock_outline, color: Colors.redAccent, size: 42.sp),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Confirm Exit',
+                    style: TextStyle(
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                      letterSpacing: 0.2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 330.w,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Enter password to exit",
+                      style: TextStyle(fontSize: 15.sp, color: Colors.grey[700]),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 16.h),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: errorNotifier,
+                      builder: (context, hasError, child) {
+                        return TextField(
+                          controller: passwordController,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            hintText: 'Password',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14.r),
+                              borderSide: BorderSide(color: hasError ? Colors.red : Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14.r),
+                              borderSide: BorderSide(color: hasError ? Colors.red : Colors.deepPurpleAccent, width: 2),
+                            ),
+                            errorText: hasError ? 'Incorrect Password' : null,
+                            suffixIcon: Icon(
+                              Icons.vpn_key_rounded,
+                              color: hasError ? Colors.red : Colors.grey[400],
+                              size: 22.sp,
+                            ),
+                          ),
+                          style: TextStyle(fontSize: 17.sp, color: Colors.black87, letterSpacing: 1.1),
+                          onChanged: (_) {
+                            if (hasError) errorNotifier.value = false;
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.grey[100],
+                        foregroundColor: Colors.black87,
+                        minimumSize: Size(110.w, 44.h),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+                      ),
+                      child: Text('Cancel', style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold)),
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        minimumSize: Size(110.w, 44.h),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+                        elevation: 0,
+                      ),
+                      child: Text('Exit', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        if (passwordController.text == "55555") {
+                          Navigator.of(dialogContext).pop(true);
+                        } else {
+                          errorNotifier.value = true;
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -59,8 +174,9 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
         if (currentIndex != 0) {
           _onItemTapped(0);
           return false;
+        } else {
+          return await _showExitDialog();
         }
-        return true;
       },
       child: Scaffold(
         body: IndexedStack(index: currentIndex, children: pages),
@@ -71,7 +187,6 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Home Button!
               IconButton(
                 onPressed: () => _onItemTapped(0),
                 icon: Image.asset(
@@ -81,7 +196,6 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
                 ),
               ),
               SizedBox(width: 48.w),
-              // Dashboard Button
               IconButton(
                 onPressed: () => _onItemTapped(2),
                 icon: Image.asset(
@@ -93,7 +207,6 @@ class _BottomNavigationBarPageState extends State<BottomNavigationBarPage> {
             ],
           ),
         ),
-        // Scanner Button
         floatingActionButton: SizedBox(
           height: 70.h,
           width: 70.w,

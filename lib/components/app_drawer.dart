@@ -184,6 +184,16 @@ class _AppDrawerState extends State<AppDrawer> {
             leading: Image.asset('assets/images/logout.png', height: 26.h),
             title: AppText('Logout.', fontSize: 16.sp, color: Colors.red),
           ),
+          // Spacer(),
+          // // Invoice Button!
+          // ListTile(
+          //   onTap: () {
+          //     Get.back();
+          //     Get.to(() => SettingsPage());
+          //   },
+          //   leading: Image.asset('assets/images/settings.png', height: 26.h),
+          //   title: AppText('Settings.', fontSize: 16.sp),
+          // ),
         ],
       ),
     );

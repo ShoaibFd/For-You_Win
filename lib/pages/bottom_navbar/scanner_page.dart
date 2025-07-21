@@ -45,7 +45,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
           _controller = MobileScannerController();
         });
         // Delay to ensure controller is ready
-        await Future.delayed(const Duration(milliseconds: 1500));
+        await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) {
           setState(() {
             _isScannerReady = true;
@@ -59,7 +59,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             _hasPermission = true;
             _controller = MobileScannerController();
           });
-          await Future.delayed(const Duration(milliseconds: 1500));
+          await Future.delayed(const Duration(milliseconds: 500));
           if (mounted) {
             setState(() {
               _isScannerReady = true;
@@ -97,7 +97,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
         _isScanned = false;
         _isScannerReady = false;
       });
-      Future.delayed(const Duration(milliseconds: 1000), () {
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           setState(() {
             _isScannerReady = true;
@@ -153,7 +153,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             _isScanned = false;
             _isScannerReady = false;
           });
-          Future.delayed(const Duration(milliseconds: 1000), () {
+          Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               setState(() {
                 _isScannerReady = true;
@@ -180,7 +180,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       _isScannerReady = false;
     });
 
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted && _hasPermission) {
         setState(() {
           _isScannerReady = true;
@@ -243,7 +243,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                       _errorMessage = null;
                       _controller = MobileScannerController();
                     });
-                    await Future.delayed(const Duration(milliseconds: 1500));
+                    await Future.delayed(const Duration(milliseconds: 500));
                     if (mounted) {
                       setState(() {
                         _isScannerReady = true;

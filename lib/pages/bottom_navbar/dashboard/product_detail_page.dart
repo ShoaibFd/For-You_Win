@@ -209,9 +209,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       MapEntry('Status', AppText(isPaid ? 'Paid' : 'Purchased', color: isPaid ? Colors.blue : secondaryColor)),
       MapEntry('Prize', AppText(_safeToString(ticket.raffleDrawPrize))),
       MapEntry('Numbers', AppText(_safeToString(ticket.numbers))),
-      MapEntry('Straight', AppText(_safeToString(ticket.straight))),
-      MapEntry('Rumble', AppText(_safeToString(ticket.rumble))),
-      MapEntry('Chance', AppText(_safeToString(ticket.chance))),
+      MapEntry('Straight', AppText(_safeToString(ticket.straight == 1 ? "Yes" : "No"))),
+      MapEntry('Rumble', AppText(_safeToString(ticket.rumble == 1 ? "Yes" : "No"))),
+      MapEntry('Chance', AppText(_safeToString(ticket.chance == 1 ? "Yes" : "No"))),
       MapEntry(
         'Ticket Announced',
         AppText(isAnnounced ? 'Announced' : 'Not Announced', color: isAnnounced ? Colors.blue : secondaryColor),
