@@ -199,7 +199,8 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> with TickerPr
   }
 
   // Test print for debugging
-  Future<void> _handleTestPrint() async {
+
+  Future<void> handleTestPrint() async {
     final success = await SunmiPrintService.testPrint();
     if (success) {
       AppSnackbar.showSuccessSnackbar('Test print successful or PDF generated!');
@@ -209,13 +210,13 @@ class _GenerateInvoicePageState extends State<GenerateInvoicePage> with TickerPr
   }
 
   // Check printer availability for debugging
-  Future<void> _checkPrinterAvailability() async {
+  Future<void> checkPrinterAvailability() async {
     final isAvailable = await SunmiPrintService.checkPrinterAvailability();
     AppSnackbar.showInfoSnackbar('Printer ${isAvailable ? 'Available' : 'Not Available'}');
   }
 
   // Manually check printer status for debugging
-  Future<void> _checkPrinterStatus() async {
+  Future<void> checkPrinterStatus() async {
     final initialized = await SunmiPrintService.initialize();
     AppSnackbar.showInfoSnackbar('Printer Status: ${initialized ? 'Ready' : 'Not Ready'}');
   }

@@ -28,18 +28,19 @@ dependencies:
   printing: ^5.14.2
   provider: ^6.1.5
   qr_flutter: ^4.0.0
-  esc_pos_utils_plus: ^2.0.4
-  flutter_bluetooth_printer: ^2.19.0
-  flutter_pdfview: ^1.4.0+1
-  share_plus: ^7.2.1
+  # esc_pos_utils_plus: ^2.0.4
+  # flutter_bluetooth_printer: ^2.19.0
+  # flutter_pdfview: ^1.4.0+1
+  # share_plus: ^7.2.1
   shared_preferences: ^2.5.3
   sunmi_printer_plus: ^4.1.0
   kiosk_mode: ^0.7.0
-  url_launcher: ^6.2.2
-  qr_code_scanner_plus: ^2.0.0
+  # url_launcher: ^6.2.2
+  # device_policy_controller: ^0.0.3+1
+  # qr_code_scanner_plus: ^2.0.0
   # disable_battery_optimization: ^1.1.1
   # ignore_battery_optimizations:
-  battery_optimization_helper: ^0.0.5
+  # battery_optimization_helper: ^0.0.5
 
 dev_dependencies:
   flutter_lints: ^5.0.0

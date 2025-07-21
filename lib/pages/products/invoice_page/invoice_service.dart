@@ -306,7 +306,7 @@ class SunmiPrintService {
     required String orderNumber,
     String? productName,
     String? orderDate,
-    
+
     required String amount,
     required String purchasedBy,
     String? vat,
