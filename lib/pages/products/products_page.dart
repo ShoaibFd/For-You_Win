@@ -8,7 +8,7 @@ import 'package:for_u_win/data/providers/products_provider.dart';
 import 'package:for_u_win/data/services/products/products_services.dart';
 import 'package:for_u_win/pages/products/purchase_page.dart';
 import 'package:get/get.dart';
-import 'package:kiosk_mode/kiosk_mode.dart';
+// import 'package:kiosk_mode/kiosk_mode.dart';dart
 import 'package:provider/provider.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -33,7 +33,7 @@ class _ProductsPageState extends State<ProductsPage> with WidgetsBindingObserver
   }
 
   startKiosMode() async {
-    await startKioskMode();
+    // await startKioskMode();
   }
 
   @override

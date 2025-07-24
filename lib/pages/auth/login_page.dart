@@ -2,7 +2,9 @@
 
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/components/app_text.dart';
 import 'package:for_u_win/components/app_textfield.dart';
@@ -13,6 +15,8 @@ import 'package:for_u_win/pages/auth/create_accout_page.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../components/app_snackbar.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -67,9 +71,7 @@ class _LoginPageState extends State<LoginPage> {
       body: Container(
         height: double.maxFinite,
         width: double.maxFinite,
-        decoration: const BoxDecoration(
-          image: DecorationImage(image: AssetImage('assets/images/auth_bg.png'), fit: BoxFit.cover),
-        ),
+        decoration: const BoxDecoration(image: DecorationImage(image: AssetImage('assets/images/auth_bg.png'), fit: BoxFit.cover)),
         child: SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 14.w),
@@ -86,13 +88,7 @@ class _LoginPageState extends State<LoginPage> {
                       children: [
                         Image.asset('assets/images/logo.png', height: 80.h),
                         SizedBox(width: 10.w),
-                        Expanded(
-                          child: AppText(
-                            'Buy our tickets & get free referral tickets',
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Expanded(child: AppText('Buy our tickets & get free referral tickets', fontSize: 18.sp, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     AppText('Login to Your Account', fontSize: 16.sp, fontWeight: FontWeight.bold),
@@ -149,10 +145,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     Align(
                       alignment: Alignment.bottomRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        child: AppText("Forgot Password?", color: primaryColor, fontWeight: FontWeight.bold),
-                      ),
+                      child: TextButton(onPressed: () {}, child: AppText("Forgot Password?", color: primaryColor, fontWeight: FontWeight.bold)),
                     ),
 
                     SizedBox(height: 70.h),
@@ -180,12 +173,27 @@ class _LoginPageState extends State<LoginPage> {
                         AppText('Need a 4uwin account?'),
                         TextButton(
                           onPressed: () => Get.to(() => CreateAccountPage()),
-                          child: AppText(
-                            'Create Account',
-                            color: errorColor,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          child: AppText('Create Account', color: errorColor, fontSize: 14.sp, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 30.h),
+
+                    Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            disableKioskMode();
+                          },
+                          child: Text('cancel'),
+                        ),
+                        SizedBox(width: 30.h),
+                        ElevatedButton(
+                          onPressed: () {
+                            enableKioskMode();
+                          },
+                          child: Text('continue'),
                         ),
                       ],
                     ),
@@ -199,6 +207,38 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+
+  Future<void> disableKioskMode() async {
+    try {
+      MethodChannel methodChannel = MethodChannel('com.mews.kiosk_mode/kiosk_mode');
+      await methodChannel.invokeMethod('stopKioskMode');
+      if (kDebugMode) {
+        print('Disabled Kiosk Mode:::');
+      }
+      AppSnackbar.showSuccessSnackbar('kiosk mode stop successfully');
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to Stop Kiosk Mode:::$e');
+      }
+      AppSnackbar.showErrorSnackbar('Failed to Stop Kiosk Mode:::$e');
+    }
+  }
+
+  Future<void> enableKioskMode() async {
+    try {
+      MethodChannel methodChannel = MethodChannel('com.mews.kiosk_mode/kiosk_mode');
+      await methodChannel.invokeMethod('startKioskMode');
+      if (kDebugMode) {
+        print('Enabled Kiosk Mode:::');
+      }
+      AppSnackbar.showSuccessSnackbar('kiosk mode started successfully');
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to Enable Kiosk Mode:::$e');
+      }
+      AppSnackbar.showErrorSnackbar('Failed to Enable Kiosk Mode:::$e');
+    }
   }
 
   /// Save email to SharedPreferences
@@ -250,10 +290,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        color: secondaryColor.withOpacity(0.2),
-                        child: _buildBottomSheetContent(controller, emails, setModalState),
-                      ),
+                      child: Container(color: secondaryColor.withOpacity(0.2), child: _buildBottomSheetContent(controller, emails, setModalState)),
                     ),
                   );
                 },
@@ -347,10 +384,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 // Manual Email Field
                 Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8.r)),
                   child: TextFormField(
                     controller: manualEmailController,
                     keyboardType: TextInputType.emailAddress,
@@ -389,10 +423,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 // Manual Password Field
                 Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8.r)),
                   child: TextFormField(
                     controller: manualPasswordController,
                     obscureText: true,
@@ -458,10 +489,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ? SizedBox(
                                   height: 20.h,
                                   width: 20.w,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(whiteColor),
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(whiteColor)),
                                 )
                                 : AppText('Login', color: whiteColor, fontWeight: FontWeight.bold),
                       ),

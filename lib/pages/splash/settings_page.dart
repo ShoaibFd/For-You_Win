@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:for_u_win/components/app_snackbar.dart';
 import 'package:for_u_win/components/app_text.dart';
@@ -31,11 +33,7 @@ class _SettingsPageState extends State<SettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(controller: _usernameController, decoration: const InputDecoration(labelText: 'Username')),
-              TextField(
-                controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-              ),
+              TextField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
             ],
           ),
           actions: [
@@ -57,14 +55,26 @@ class _SettingsPageState extends State<SettingsPage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
                 elevation: 0,
               ),
-              child: Text('Exit', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
-              onPressed: () {
+              onPressed: () async {
                 if (_usernameController.text == correctUsername && _passwordController.text == correctPassword) {
-                  Navigator.of(context).pop(true);
+                  bool? val;
+                  if (newValue == true) {
+                    val = await enableKioskMode();
+                  } else {
+                    val = await disableKioskMode();
+                  }
+
+                  if (val == true) {
+                    AppSnackbar.showSuccessSnackbar('kiosk mode stop successfully');
+                    Navigator.pop(context, true);
+                  } else {
+                    AppSnackbar.showErrorSnackbar('Failed to stop kiosk mode');
+                  }
                 } else {
                   AppSnackbar.showErrorSnackbar('Invalid credentials');
                 }
               },
+              child: Text('Continue', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -83,6 +93,34 @@ class _SettingsPageState extends State<SettingsPage> {
         debugPrint('Kiosk Mode DISABLED');
       }
     }
+  }
+
+  Future<bool> disableKioskMode() async {
+    try {
+      MethodChannel methodChannel = MethodChannel('com.mews.kiosk_mode/kiosk_mode');
+      await methodChannel.invokeMethod('stopKioskMode');
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to Stop Kiosk Mode:::$e');
+      }
+    }
+
+    return false;
+  }
+
+  Future<bool> enableKioskMode() async {
+    try {
+      MethodChannel methodChannel = MethodChannel('com.mews.kiosk_mode/kiosk_mode');
+      await methodChannel.invokeMethod('startKioskMode');
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to Stop Kiosk Mode:::$e');
+      }
+    }
+
+    return false;
   }
 
   @override
